@@ -4,132 +4,248 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>우리집 기념일</title>
-<meta name="theme-color" content="#b4532a">
+<meta name="theme-color" content="#ffffff">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
-  :root { --bg:#faf6f1; --card:#fff; --ink:#2b2420; --sub:#7a6d64; --line:#e7ddd3; --accent:#b4532a; --soft:#f6e7dc; --memorial:#55606e; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#1d1a18; --card:#282320; --ink:#f1e9e2; --sub:#a99c92; --line:#3c3430; --accent:#e08a5f; --soft:#3a2a22; --memorial:#9fb0c2; } }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; padding-bottom:96px; }
-  header { padding:20px 16px 8px; }
-  h1 { margin:0; font-size:22px; }
-  nav { display:flex; gap:6px; padding:8px 16px; position:sticky; top:0; background:var(--bg); z-index:2; border-bottom:1px solid var(--line); }
-  nav button { flex:1; padding:10px; border:0; border-radius:10px; background:transparent; color:var(--sub); font:inherit; font-weight:600; cursor:pointer; }
-  nav button[aria-selected=true] { background:var(--soft); color:var(--accent); }
-  main { padding:16px; max-width:720px; margin:0 auto; }
-  .empty { text-align:center; color:var(--sub); padding:48px 16px; }
-  .item { display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; cursor:pointer; }
-  .dday { min-width:64px; text-align:center; font-weight:700; color:var(--accent); font-size:18px; }
-  .item.memorial .dday { color:var(--memorial); }
-  .item .what { flex:1; }
-  .item .sub, .sub { color:var(--sub); font-size:14px; }
-  .tree { overflow-x:auto; padding:8px 0 24px; display:flex; gap:40px; align-items:flex-start; }
-  .tray { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; padding:12px; margin-bottom:12px; border:2px dashed var(--line); border-radius:14px; }
-  .tray > .sub { flex-basis:100%; }
-  .branch { flex:0 0 auto; margin:0 auto; text-align:center; }
-  .branch > .sub { margin-bottom:8px; }
+  /* 색은 전부 토큰으로. 다크모드는 <html data-theme="dark">만 붙이면 켜진다 */
+  :root {
+    --bg:#ffffff; --bg-2:#f2f4f6; --bg-3:#e5e8eb; --surface:#ffffff;
+    --ink:#191f28; --ink-2:#4e5968; --sub:#8b95a1; --faint:#b0b8c1; --line:#e5e8eb; --line-2:#d1d6db;
+    --accent:#3182f6; --accent-ink:#ffffff; --accent-soft:#e8f3ff;
+    --male:#3182f6; --male-soft:#e8f3ff; --female:#f0548b; --female-soft:#fdeef4; --none-soft:#f2f4f6;
+    --memorial:#6b7684; --danger:#f04452;
+    --shadow:0 1px 2px rgba(0,23,51,.04), 0 2px 8px rgba(0,23,51,.06);
+    --shadow-lg:0 8px 28px rgba(0,23,51,.16);
+    --tabbar:64px; --header:96px;
+    color-scheme:light;
+  }
+  :root[data-theme="dark"] {
+    --bg:#17171c; --bg-2:#202027; --bg-3:#2c2c35; --surface:#202027;
+    --ink:#f2f2f5; --ink-2:#c3c3c9; --sub:#9e9ea4; --faint:#6d6d75; --line:#2c2c35; --line-2:#3c3c47;
+    --accent:#4c9bff; --accent-ink:#ffffff; --accent-soft:#1d2b40;
+    --male:#4c9bff; --male-soft:#1d2b40; --female:#ff6f9f; --female-soft:#3a2230; --none-soft:#2c2c35;
+    --memorial:#9e9ea4; --danger:#ff5c6c;
+    --shadow:0 1px 2px rgba(0,0,0,.3); --shadow-lg:0 8px 28px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); }
+  body { font:16px/1.5 "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; letter-spacing:-0.01em; -webkit-font-smoothing:antialiased; }
+  button { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  svg.i { width:24px; height:24px; flex:none; }
+
+  /* 상단 제목 */
+  .top { position:sticky; top:0; z-index:5; background:var(--bg); padding:calc(env(safe-area-inset-top) + 20px) 20px 12px; display:flex; align-items:flex-end; gap:12px; max-width:720px; margin:0 auto; }
+  .top h1 { margin:0; font-size:26px; font-weight:700; letter-spacing:-0.02em; flex:1; }
+  .top p { margin:4px 0 0; color:var(--sub); font-size:14px; }
+  .add { display:inline-flex; align-items:center; gap:4px; border:0; background:var(--accent-soft); color:var(--accent); font-weight:600; font-size:15px; padding:8px 14px 8px 10px; border-radius:10px; cursor:pointer; white-space:nowrap; }
+  .add svg { width:20px; height:20px; }
+  main { max-width:720px; margin:0 auto; padding:0 20px calc(var(--tabbar) + env(safe-area-inset-bottom) + 24px); }
+
+  /* 아래 탭바 */
+  .tabbar { position:fixed; left:0; right:0; bottom:0; z-index:20; background:var(--bg); border-top:1px solid var(--line); display:flex; justify-content:center; padding-bottom:env(safe-area-inset-bottom); }
+  .tabbar button { flex:1; max-width:160px; height:var(--tabbar); border:0; background:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:11px; font-weight:600; color:var(--faint); cursor:pointer; }
+  .tabbar button[aria-selected=true] { color:var(--ink); }
+
+  .empty { text-align:center; color:var(--sub); padding:72px 16px; line-height:1.7; }
+  .empty b { color:var(--ink-2); }
+
+  /* 다가오는 날 */
+  .hero { background:var(--bg-2); border-radius:20px; padding:22px 20px; margin:8px 0 28px; cursor:pointer; }
+  .hero .k { color:var(--ink-2); font-size:15px; }
+  .hero .big { font-size:34px; font-weight:700; letter-spacing:-0.03em; margin:2px 0 4px; }
+  .hero .big.memorial { color:var(--memorial); }
+  .hero .big:not(.memorial) { color:var(--accent); }
+  .hero .d { color:var(--sub); font-size:14px; }
+  .section { font-size:15px; font-weight:600; color:var(--ink-2); margin:0 0 4px; }
+  .li { display:flex; align-items:center; gap:14px; padding:14px 0; cursor:pointer; border:0; background:none; width:100%; text-align:left; }
+  .li + .li { border-top:1px solid var(--line); }
+  .li .main { flex:1; min-width:0; }
+  .li .t { font-size:16px; font-weight:600; }
+  .li .t span { font-weight:500; color:var(--ink-2); }
+  .li .s { font-size:13px; color:var(--sub); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pill { flex:none; font-size:13px; font-weight:700; padding:5px 10px; border-radius:8px; background:var(--accent-soft); color:var(--accent); }
+  .pill.memorial { background:var(--bg-2); color:var(--memorial); }
+  .pill.today { background:var(--accent); color:var(--accent-ink); }
+
+  /* 성별 아바타 */
+  .av { flex:none; width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:var(--none-soft); color:var(--faint); }
+  .av svg { width:24px; height:24px; }
+  .av.M { background:var(--male-soft); color:var(--male); }
+  .av.F { background:var(--female-soft); color:var(--female); }
+
+  /* 관계도 캔버스 */
+  .canvas-wrap { position:relative; margin:0 -20px; }
+  body[data-tab=tree] main { padding-bottom:0; }
+  body[data-tab=tree] { overflow:hidden; }
+  .canvas { height:calc(100dvh - var(--header) - var(--tabbar) - env(safe-area-inset-bottom) - env(safe-area-inset-top)); overflow:auto; background:var(--bg-2); touch-action:pan-x pan-y; overscroll-behavior:contain; }
+  .fam { display:inline-block; min-width:100%; padding:20px 20px 120px; }
+  .tray { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; padding:12px; margin-bottom:20px; border:1.5px dashed var(--line-2); border-radius:16px; background:var(--bg); }
+  .tray > .cap { flex-basis:100%; font-size:13px; color:var(--sub); }
+  .tree { display:flex; gap:48px; align-items:flex-start; width:max-content; }
+  .branch { flex:0 0 auto; text-align:center; }
+  .branch > .cap { font-size:12px; color:var(--sub); margin-bottom:10px; }
   .tree ul { padding-top:20px; position:relative; display:flex; justify-content:center; margin:0; padding-left:0; }
   .tree li { list-style:none; position:relative; padding:20px 6px 0; text-align:center; }
-  .tree li::before, .tree li::after { content:""; position:absolute; top:0; right:50%; width:50%; height:20px; border-top:2px solid var(--line); }
-  .tree li::after { right:auto; left:50%; border-left:2px solid var(--line); }
+  .tree li::before, .tree li::after { content:""; position:absolute; top:0; right:50%; width:50%; height:20px; border-top:1.5px solid var(--line-2); }
+  .tree li::after { right:auto; left:50%; border-left:1.5px solid var(--line-2); }
   .tree li:only-child::before, .tree li:only-child::after { display:none; }
   .tree li:only-child { padding-top:0; }
   .tree li:first-child::before, .tree li:last-child::after { border:0 none; }
-  .tree li:last-child::before { border-right:2px solid var(--line); border-radius:0 6px 0 0; }
-  .tree li:first-child::after { border-radius:6px 0 0 0; }
-  .tree ul ul::before { content:""; position:absolute; top:0; left:50%; height:20px; border-left:2px solid var(--line); }
+  .tree li:last-child::before { border-right:1.5px solid var(--line-2); border-radius:0 8px 0 0; }
+  .tree li:first-child::after { border-radius:8px 0 0 0; }
+  .tree ul ul::before { content:""; position:absolute; top:0; left:50%; height:20px; border-left:1.5px solid var(--line-2); }
   .branch > ul { padding-top:0; }
-  /* 부부는 한 장처럼 붙은 카드 */
-  .couple { display:inline-flex; align-items:stretch; }
-  .couple > .person:first-child:not(:last-child) { border-radius:12px 0 0 12px; border-right-width:0; }
-  .couple > .person:last-child:not(:first-child) { border-radius:0 12px 12px 0; border-left:1px dashed var(--line); }
-  .heart { width:0; display:flex; align-items:center; justify-content:center; z-index:1; }
-  .heart::before { content:"♥"; flex:none; width:22px; height:22px; line-height:20px; font-size:12px; text-align:center; color:var(--accent); background:var(--card); border:1px solid var(--line); border-radius:50%; }
-  .person { display:inline-block; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 12px; min-width:84px; cursor:grab; font:inherit; color:inherit; touch-action:none; user-select:none; -webkit-user-select:none; position:relative; }
+
+  .person { display:inline-flex; flex-direction:column; align-items:center; gap:2px; width:116px; padding:14px 8px 12px; background:var(--surface); border:0; border-radius:16px; box-shadow:var(--shadow); cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; position:relative; text-align:center; vertical-align:top; }
+  .person .av { margin-bottom:6px; }
+  .person b { font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .person .rel { font-size:13px; color:var(--accent); font-weight:600; min-height:19px; }
+  .person .ev { font-size:11px; color:var(--sub); line-height:1.45; margin-top:4px; }
+  .person.gone .av { filter:grayscale(1); opacity:.7; }
+  /* 부부는 한 장처럼 */
+  .couple { display:inline-flex; align-items:stretch; border-radius:16px; box-shadow:var(--shadow); background:var(--surface); }
+  .couple > .person { box-shadow:none; }
+  .couple > .person:first-child:not(:last-child) { border-radius:16px 0 0 16px; }
+  .couple > .person:last-child:not(:first-child) { border-radius:0 16px 16px 0; }
+  .heart { width:1px; background:var(--line); margin:14px 0; display:flex; align-items:center; justify-content:center; z-index:1; }
+  .heart::before { content:""; flex:none; width:20px; height:20px; border-radius:50%; background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f0548b' d='M12 20s-7-4.4-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.6 12 20 12 20z'/%3E%3C/svg%3E") center/14px no-repeat; box-shadow:0 0 0 1px var(--line); }
   .person.dragging { opacity:.3; }
-  .person.ghost { position:fixed; left:0; top:0; z-index:50; pointer-events:none; cursor:grabbing; box-shadow:0 10px 28px rgba(0,0,0,.25); border-radius:12px !important; border:1px solid var(--accent); }
-  .person[data-drop] { outline:3px solid var(--accent); outline-offset:2px; z-index:2; }
-  .person[data-drop]::after { content:attr(data-drop); position:absolute; left:50%; transform:translateX(-50%); background:var(--accent); color:#fff; font-size:12px; font-weight:700; padding:2px 8px; border-radius:8px; white-space:nowrap; }
-  .person[data-zone=parent]::after { top:-26px; }
-  .person[data-zone=child]::after { bottom:-26px; }
-  .person[data-zone=spouse]::after { top:-26px; }
-  #toast { position:fixed; left:0; right:0; margin:0 auto; width:fit-content; bottom:max(84px, calc(env(safe-area-inset-bottom) + 72px)); z-index:60; display:flex; gap:12px; align-items:center; background:var(--ink); color:var(--bg); padding:10px 14px; border-radius:12px; font-size:14px; max-width:calc(100% - 32px); box-shadow:0 6px 20px rgba(0,0,0,.25); }
+  .person.ghost { position:fixed; left:0; top:0; z-index:50; pointer-events:none; cursor:grabbing; box-shadow:var(--shadow-lg); border-radius:16px !important; }
+  .person[data-drop] { box-shadow:0 0 0 2px var(--accent), var(--shadow); z-index:2; }
+  .person[data-drop]::after { content:attr(data-drop); position:absolute; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); font-size:12px; font-weight:600; padding:4px 10px; border-radius:8px; white-space:nowrap; }
+  .person[data-zone=parent]::after, .person[data-zone=spouse]::after { top:-30px; }
+  .person[data-zone=child]::after { bottom:-30px; }
+  .zoom { position:absolute; right:16px; bottom:16px; display:flex; align-items:center; background:var(--surface); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
+  .zoom button { width:40px; height:40px; border:0; background:none; font-size:20px; cursor:pointer; color:var(--ink-2); }
+  .zoom span { min-width:48px; text-align:center; font-size:13px; font-weight:600; color:var(--ink-2); cursor:pointer; }
+
+  /* 알림·공유 */
+  .menu { display:flex; align-items:center; gap:14px; width:100%; border:0; background:none; padding:16px 0; text-align:left; cursor:pointer; }
+  .menu + .menu { border-top:1px solid var(--line); }
+  .menu .ic { width:44px; height:44px; border-radius:14px; background:var(--accent-soft); color:var(--accent); display:grid; place-items:center; flex:none; }
+  .menu .main { flex:1; }
+  .menu b { display:block; font-size:16px; font-weight:600; }
+  .menu small { color:var(--sub); font-size:13px; }
+  .menu .chev { color:var(--faint); width:20px; height:20px; }
+  .note { background:var(--bg-2); border-radius:16px; padding:16px 18px; margin-top:20px; color:var(--ink-2); font-size:14px; line-height:1.65; }
+  .note h3 { margin:0 0 6px; font-size:14px; font-weight:700; color:var(--ink); }
+  .note ul { margin:0; padding-left:18px; }
+
+  /* 아래에서 올라오는 입력창 */
+  dialog { border:0; padding:0; margin:auto auto 0; width:100%; max-width:520px; max-height:92dvh; border-radius:24px 24px 0 0; background:var(--bg); color:var(--ink); box-shadow:var(--shadow-lg); }
+  dialog[open] { animation:up .28s cubic-bezier(.2,.8,.2,1); }
+  @keyframes up { from { transform:translateY(40px); opacity:0; } }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  @media (min-width:600px) { dialog { margin:auto; border-radius:24px; } }
+  form { padding:24px 20px calc(16px + env(safe-area-inset-bottom)); }
+  form h2 { margin:0 0 18px; font-size:22px; font-weight:700; }
+  .f { margin-bottom:16px; }
+  .f > label, .lbl { display:block; font-size:13px; font-weight:600; color:var(--ink-2); margin-bottom:6px; }
+  input, select { width:100%; height:52px; padding:0 16px; border:1.5px solid transparent; border-radius:14px; font:inherit; font-size:16px; background:var(--bg-2); color:var(--ink); appearance:none; -webkit-appearance:none; }
+  select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%238b95a1' stroke-width='2' d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; background-size:20px; padding-right:40px; }
+  input:focus, select:focus { outline:none; border-color:var(--accent); background-color:var(--bg); }
+  input::placeholder { color:var(--faint); }
+  .hint { font-size:12px; color:var(--sub); margin-top:6px; }
+  .seg { display:flex; background:var(--bg-2); border-radius:14px; padding:4px; gap:4px; }
+  .seg label { flex:1; position:relative; }
+  .seg input { position:absolute; opacity:0; width:1px; height:1px; }
+  .seg span { display:flex; align-items:center; justify-content:center; gap:6px; height:44px; border-radius:10px; font-weight:600; color:var(--sub); cursor:pointer; }
+  .seg input:checked + span { background:var(--bg); color:var(--ink); box-shadow:var(--shadow); }
+  .seg input:focus-visible + span { outline:2px solid var(--accent); }
+  .seg svg { width:18px; height:18px; }
+  .seg input[value=M]:checked + span svg { color:var(--male); }
+  .seg input[value=F]:checked + span svg { color:var(--female); }
+  .switch { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:var(--bg-2); border-radius:14px; font-weight:600; font-size:15px; cursor:pointer; }
+  .switch input { position:absolute; opacity:0; width:1px; height:1px; }
+  .switch i { flex:none; width:44px; height:26px; border-radius:13px; background:var(--line-2); position:relative; transition:background .2s; }
+  .switch i::after { content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:transform .2s; }
+  .switch input:checked + i { background:var(--accent); }
+  .switch input:checked + i::after { transform:translateX(18px); }
+  .switch input:focus-visible + i { outline:2px solid var(--accent); outline-offset:2px; }
+  fieldset { border:0; margin:0 0 16px; padding:0; }
+  legend { font-size:13px; font-weight:600; color:var(--ink-2); margin-bottom:6px; padding:0; }
+  .grid3 { display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:8px; }
+  .checks { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:8px; }
+  .check { display:flex; gap:6px; align-items:center; font-size:14px; color:var(--ink-2); cursor:pointer; }
+  .check input { width:18px; height:18px; accent-color:var(--accent); appearance:auto; -webkit-appearance:checkbox; }
+  .actions { display:flex; gap:8px; margin-top:24px; }
+  .btn { flex:1; height:56px; border:0; border-radius:16px; font-size:17px; font-weight:600; cursor:pointer; background:var(--accent); color:var(--accent-ink); }
+  .btn.gray { background:var(--bg-2); color:var(--ink-2); flex:0 0 96px; }
+  .del { display:block; margin:14px auto 0; border:0; background:none; color:var(--danger); font-size:14px; font-weight:600; cursor:pointer; padding:8px; }
+
+  #toast { position:fixed; left:0; right:0; margin:0 auto; width:fit-content; max-width:calc(100% - 32px); bottom:calc(var(--tabbar) + env(safe-area-inset-bottom) + 12px); z-index:60; display:flex; gap:14px; align-items:center; background:var(--ink); color:var(--bg); padding:12px 16px; border-radius:14px; font-size:14px; box-shadow:var(--shadow-lg); }
   #toast[hidden] { display:none; }
-  #toast button { border:0; background:transparent; color:var(--accent); font:inherit; font-weight:700; cursor:pointer; white-space:nowrap; }
-  .person b { display:block; white-space:nowrap; }
-  .person small { color:var(--sub); white-space:nowrap; }
-  .person.gone { border-style:dashed; }
-  .fab { position:fixed; right:16px; bottom:max(16px, env(safe-area-inset-bottom)); background:var(--accent); color:#fff; border:0; border-radius:28px; padding:14px 22px; font:inherit; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,.2); cursor:pointer; }
-  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
-  .panel h2 { margin:0 0 6px; font-size:17px; }
-  .btn { display:inline-block; border:0; border-radius:10px; padding:12px 16px; font:inherit; font-weight:600; background:var(--accent); color:#fff; cursor:pointer; margin-top:8px; }
-  .btn.ghost { background:var(--soft); color:var(--accent); }
-  .btn.danger { background:transparent; color:#c0392b; }
-  dialog { border:0; border-radius:16px; padding:0; width:min(480px, calc(100% - 24px)); background:var(--card); color:var(--ink); }
-  dialog::backdrop { background:rgba(0,0,0,.4); }
-  form { padding:18px; }
-  form h2 { margin:0 0 12px; font-size:18px; }
-  label { display:block; font-size:14px; color:var(--sub); margin:10px 0 4px; }
-  input, select { width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; font:inherit; background:var(--bg); color:var(--ink); }
-  fieldset { border:1px solid var(--line); border-radius:12px; margin:14px 0 0; padding:8px 12px 12px; }
-  legend { font-weight:600; padding:0 4px; }
-  .row { display:flex; gap:8px; align-items:center; }
-  .row > * { flex:1; }
-  .check { display:flex; gap:6px; align-items:center; color:var(--ink); font-size:14px; margin-top:8px; }
-  .check input { width:auto; }
-  .actions { display:flex; justify-content:space-between; gap:8px; margin-top:16px; }
-  :focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  #toast button { border:0; background:transparent; color:var(--accent); font-weight:700; cursor:pointer; white-space:nowrap; padding:0; }
 </style>
 </head>
 <body>
-<header><h1>우리집 기념일</h1><div class="sub">양가 부모님 생신·기일, 음력도 매년 자동 계산</div></header>
-<nav role="tablist">
-  <button role="tab" data-tab="upcoming" aria-selected="true">다가오는 날</button>
-  <button role="tab" data-tab="tree" aria-selected="false">가족도</button>
-  <button role="tab" data-tab="share" aria-selected="false">알림·공유</button>
-</nav>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-M" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4" fill="currentColor"/><path fill="currentColor" d="M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5z"/></symbol>
+  <symbol id="i-F" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3.5c-3 0-4.9 2.2-4.9 5.2 0 1.9-.6 3.4-1.4 4.3 1.3.6 2.9.9 4.3.9h4c1.4 0 3-.3 4.3-.9-.8-.9-1.4-2.4-1.4-4.3 0-3-1.9-5.2-4.9-5.2z"/><path fill="currentColor" d="M4 20.5c0-3.6 3.6-5.6 8-5.6s8 2 8 5.6z"/></symbol>
+  <symbol id="i-" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4" fill="currentColor"/><path fill="currentColor" d="M4 20.5c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5z"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></g></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="3" width="7" height="5" rx="1.5"/><rect x="2.5" y="16" width="7" height="5" rx="1.5"/><rect x="14.5" y="16" width="7" height="5" rx="1.5"/><path d="M12 8v4M6 16v-4h12v4"/></g></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12.5V18a2.5 2.5 0 0 0 2.5 2.5h9A2.5 2.5 0 0 0 19 18v-5.5"/></g></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></g></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="top">
+  <div style="flex:1"><h1 id="title">다가오는 날</h1><p id="subtitle"></p></div>
+  <button class="add" id="add" hidden><svg><use href="#i-plus"/></svg>가족 추가</button>
+</header>
 <main id="view"></main>
-<button class="fab" id="add">＋ 가족 추가</button>
+<nav class="tabbar" role="tablist">
+  <button role="tab" data-tab="upcoming" aria-selected="true"><svg class="i"><use href="#i-cal"/></svg>다가오는 날</button>
+  <button role="tab" data-tab="tree" aria-selected="false"><svg class="i"><use href="#i-tree"/></svg>관계도</button>
+  <button role="tab" data-tab="share" aria-selected="false"><svg class="i"><use href="#i-share"/></svg>알림·공유</button>
+</nav>
 <div id="toast" role="status" hidden></div>
 
 <dialog id="dlg">
   <form method="dialog" id="form">
     <h2 id="formTitle">가족 추가</h2>
-    <label for="f-name">이름</label>
-    <input id="f-name" name="name" required placeholder="예: 김영희">
-    <div class="row">
-      <div><label for="f-gender">성별</label>
-        <select id="f-gender" name="gender"><option value="">선택 안 함</option><option value="M">남자</option><option value="F">여자</option></select></div>
-      <div><label class="check" style="margin-top:30px"><input type="checkbox" name="me"> 이 사람이 나</label></div>
+    <div class="f"><label for="f-name">이름</label><input id="f-name" name="name" required placeholder="이름을 입력해 주세요" autocomplete="off"></div>
+    <div class="f"><span class="lbl" id="g-lbl">성별</span>
+      <div class="seg" role="radiogroup" aria-labelledby="g-lbl">
+        <label><input type="radio" name="gender" value="M" required><span><svg><use href="#i-M"/></svg>남자</span></label>
+        <label><input type="radio" name="gender" value="F"><span><svg><use href="#i-F"/></svg>여자</span></label>
+      </div>
     </div>
-    <label for="f-rel">관계 (나와의)</label>
-    <input id="f-rel" name="rel" placeholder="가족도에서 끌어 붙이면 자동으로 채워져요">
-    <div class="sub" style="font-size:12px;margin-top:4px">직접 고쳐 쓰면 그 호칭을 유지하고, 비우면 다시 자동으로 채워요.</div>
+    <div class="f"><label class="switch">이 사람이 나예요<input type="checkbox" name="me"><i></i></label>
+      <div class="hint">관계도의 호칭(시어머니, 외할아버지 등)은 '나'를 기준으로 자동으로 정해져요.</div></div>
+    <div class="f"><label for="f-rel">나와의 관계</label><input id="f-rel" name="rel" placeholder="관계도에서 연결하면 자동으로 채워져요" autocomplete="off">
+      <div class="hint">직접 고쳐 쓰면 그 호칭을 유지하고, 비우면 다시 자동으로 채워요.</div></div>
     <fieldset data-ev="생신">
       <legend>생신</legend>
-      <div class="row">
+      <div class="grid3">
         <select name="cal" aria-label="생신 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
-        <input name="m" type="number" min="1" max="12" placeholder="월" aria-label="생신 월">
-        <input name="d" type="number" min="1" max="31" placeholder="일" aria-label="생신 일">
+        <input name="m" type="number" inputmode="numeric" min="1" max="12" placeholder="월" aria-label="생신 월">
+        <input name="d" type="number" inputmode="numeric" min="1" max="31" placeholder="일" aria-label="생신 일">
       </div>
-      <label class="check"><input type="checkbox" name="leap"> 윤달</label>
+      <div class="checks"><label class="check"><input type="checkbox" name="leap"> 윤달</label></div>
     </fieldset>
     <fieldset data-ev="기일">
       <legend>기일</legend>
-      <div class="row">
+      <div class="grid3">
         <select name="cal" aria-label="기일 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
-        <input name="m" type="number" min="1" max="12" placeholder="월" aria-label="기일 월">
-        <input name="d" type="number" min="1" max="31" placeholder="일" aria-label="기일 일">
+        <input name="m" type="number" inputmode="numeric" min="1" max="12" placeholder="월" aria-label="기일 월">
+        <input name="d" type="number" inputmode="numeric" min="1" max="31" placeholder="일" aria-label="기일 일">
       </div>
-      <label class="check"><input type="checkbox" name="leap"> 윤달</label>
-      <label class="check"><input type="checkbox" name="eve"> 제사는 전날 밤에 지냄</label>
+      <div class="checks"><label class="check"><input type="checkbox" name="leap"> 윤달</label><label class="check"><input type="checkbox" name="eve"> 제사는 전날 밤에 지내요</label></div>
     </fieldset>
     <div class="actions">
-      <button type="button" class="btn danger" id="del">삭제</button>
-      <span><button type="button" class="btn ghost" id="cancel">취소</button> <button class="btn" value="save">저장</button></span>
+      <button type="button" class="btn gray" id="cancel">닫기</button>
+      <button class="btn" value="save">저장</button>
     </div>
+    <button type="button" class="del" id="del">이 가족 삭제</button>
   </form>
 </dialog>
 

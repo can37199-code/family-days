@@ -29,35 +29,51 @@ if (location.hash.startsWith('#d=')) {
   history.replaceState(null, '', location.pathname);
 }
 
+const TITLES = {
+  upcoming: ['다가오는 날', '양가 생신·기일을 음력까지 챙겨 드려요'],
+  tree: ['관계도', '카드를 다른 카드의 옆·아래·위에 놓으면 배우자·자녀·부모로 연결돼요'],
+  share: ['알림·공유', ''],
+};
 let tab = 'upcoming';
-document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+document.querySelectorAll('.tabbar button').forEach(b => b.onclick = () => {
   tab = b.dataset.tab;
-  document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-selected', x === b));
+  document.querySelectorAll('.tabbar button').forEach(x => x.setAttribute('aria-selected', x === b));
+  scrollTo(0, 0);
   render();
 });
+
+const GENDER = { M: '남자', F: '여자' };
+const avatar = p => `<span class="av ${p.gender || ''}" role="img" aria-label="${GENDER[p.gender] || '성별 미입력'}"><svg><use href="#i-${p.gender || ''}"/></svg></span>`;
+const WEEK = '일월화수목금토';
+const dayLabel = date => { const [y, m, d] = date.split('-').map(Number); return `${m}월 ${d}일 (${WEEK[new Date(y, m - 1, d).getDay()]})`; };
 
 function upcoming() {
   const t = today();
   const rows = data.people.flatMap(p => (p.events || []).map(e => ({ p, e, date: nextDate(e, t) })))
     .filter(r => r.date).sort((a, b) => a.date.localeCompare(b.date));
-  if (!rows.length) return `<p class="empty">아직 등록된 기념일이 없습니다.<br><b>가족도</b> 탭에서 가족을 추가해 시작하세요.</p>`;
-  return rows.map(({ p, e, date }) => {
-    const n = daysBetween(t, date);
-    const [, mm, dd] = date.split('-');
-    return `<div class="item ${e.type === '기일' ? 'memorial' : ''}" data-id="${p.id}" role="button" tabindex="0">
-      <div class="dday">${n === 0 ? '오늘' : 'D-' + n}</div>
-      <div class="what"><b>${h(p.name)}</b> ${h(e.type)} <span class="sub">${h(p.rel)}</span>
-      <div class="sub">${+mm}월 ${+dd}일 · ${describe(e)}</div></div></div>`;
+  if (!rows.length) return `<p class="empty">아직 등록된 기념일이 없어요.<br><b>관계도</b>에서 가족을 추가해 보세요.</p>`;
+  const dd = n => n === 0 ? '오늘' : `D-${n}`;
+  const [first] = rows, n0 = daysBetween(t, first.date), mem0 = first.e.type === '기일';
+  const hero = `<div class="hero" data-id="${first.p.id}" role="button" tabindex="0">
+    <div class="k">${h(first.p.name)}님 ${h(first.e.type)}${n0 === 0 ? '이에요' : '까지'}</div>
+    <div class="big ${mem0 ? 'memorial' : ''}">${n0 === 0 ? '오늘' : `${n0}일 남았어요`}</div>
+    <div class="d">${dayLabel(first.date)} · ${describe(first.e)}</div></div>`;
+  return hero + `<h2 class="section">다가오는 기념일</h2>` + rows.map(({ p, e, date }) => {
+    const n = daysBetween(t, date), mem = e.type === '기일';
+    return `<button class="li" data-id="${p.id}">${avatar(p)}
+      <span class="main"><span class="t">${h(p.name)} <span>${h(e.type)}</span></span>
+      <span class="s" style="display:block">${dayLabel(date)} · ${describe(e)}${p.rel ? ' · ' + h(p.rel) : ''}</span></span>
+      <span class="pill ${mem ? 'memorial' : n === 0 ? 'today' : ''}">${dd(n)}</span></button>`;
   }).join('');
 }
 
 function tree() {
-  if (!data.people.length) return `<p class="empty">가족을 추가하면 여기에 가계도가 그려집니다.</p>`;
+  if (!data.people.length) return `<p class="empty">가족을 추가하면 여기에 관계도가 그려져요.<br>오른쪽 위 <b>가족 추가</b>를 눌러 보세요.</p>`;
   const done = new Set();
   const card = p => {
     const ev = (p.events || []).map(e => `${e.type} ${describe(e)}`).join('<br>');
     return `<button class="person ${p.events?.some(e => e.type === '기일') ? 'gone' : ''}" data-id="${p.id}">
-      <b>${h(p.name)}</b><small>${h(p.rel)}</small>${ev ? `<br><small>${ev}</small>` : ''}</button>`;
+      ${avatar(p)}<b>${h(p.name)}</b><span class="rel">${h(p.rel)}</span>${ev ? `<span class="ev">${ev}</span>` : ''}</button>`;
   };
   const node = p => {
     done.add(p.id);
@@ -71,69 +87,131 @@ function tree() {
   // 아무와도 안 이어진 사람(막 추가한 사람)은 위쪽 대기칸에 모아 끌어 붙이기 쉽게
   const loose = data.people.filter(p => !byId(p.parentId) && !byId(p.spouseId) && !data.people.some(c => c.parentId === p.id));
   loose.forEach(p => done.add(p.id));
-  const tray = loose.length ? `<div class="tray"><div class="sub">아직 연결 안 된 가족 · 끌어서 가족 카드에 붙이세요</div>${loose.map(card).join('')}</div>` : '';
+  const tray = loose.length ? `<div class="tray"><div class="cap">아직 연결 안 된 가족 · 끌어서 가족 카드에 놓아 주세요</div>${loose.map(card).join('')}</div>` : '';
   // 부모가 등록 안 된 사람부터. 배우자 쪽에 부모가 있으면 그쪽 가지에서 함께 그린다.
   const roots = data.people.filter(p => !done.has(p.id) && !byId(p.parentId) && !byId(byId(p.spouseId)?.parentId));
   // 양가처럼 자녀가 이미 다른 가지에 그려진 경우엔 "○○의 부모님"으로 이어 준다.
   let html = roots.map(p => {
     if (done.has(p.id)) return '';
     const linked = data.people.filter(c => c.parentId && [p.id, p.spouseId].includes(c.parentId) && done.has(c.id));
-    const cap = linked.length ? `<div class="sub">↳ ${linked.map(c => h(c.name) + (c.rel ? `(${h(c.rel)})` : '')).join(', ')}의 부모님</div>` : '';
+    const cap = linked.length ? `<div class="cap">${linked.map(c => h(c.name) + (c.rel ? `(${h(c.rel)})` : '')).join(', ')}의 부모님</div>` : '';
     return `<div class="branch">${cap}<ul>${node(p)}</ul></div>`;
   }).join('');
   const rest = data.people.filter(p => !done.has(p.id)); // 순환 등으로 빠진 사람도 보이게
   if (rest.length) html += `<div class="branch"><ul>${rest.map(p => `<li>${card(p)}</li>`).join('')}</ul></div>`;
-  return `<div class="fam">${tray}<div class="tree">${html}</div></div><p class="sub">카드를 끌어다 다른 카드의 <b>옆</b>에 놓으면 부부, <b>아래</b>는 자녀, <b>위</b>는 부모로 붙습니다.
-    빈 곳에 놓으면 떨어집니다. 누르면 수정할 수 있고, 점선 카드는 기일이 있는 분입니다.</p>`;
+  return `<div class="canvas-wrap"><div class="canvas"><div class="fam">${tray}<div class="tree">${html}</div></div></div>
+    <div class="zoom"><button type="button" data-zoom="-" aria-label="축소">−</button><span data-zoom="1" role="button" tabindex="0" aria-label="100%로">${Math.round(zoom * 100)}%</span><button type="button" data-zoom="+" aria-label="확대">+</button></div></div>`;
 }
 
 function share() {
-  return `<div class="panel"><h2>📅 폰 달력에 알림 넣기</h2>
-    <p class="sub">앞으로 20년치 생신·기일을 양력 날짜로 바꿔 달력 파일로 받습니다. 음력도 해마다 맞는 날짜로 들어갑니다.
-    아이폰은 <b>7일 전·전날 오전 9시</b> 알림이 함께 들어갑니다. 구글 캘린더는 가져올 때 알림이 빠지므로 캘린더의 기본 알림을 켜 두세요.</p>
-    <button class="btn" id="ics">달력 파일 받기 (.ics)</button></div>
-    <div class="panel"><h2>👨‍👩‍👧 가족과 공유</h2>
-    <p class="sub">공유 링크를 카톡으로 보내면 받은 사람이 같은 가족도·기념일을 그대로 가져갑니다.
-    링크를 보낸 시점의 내용이라, 나중에 고친 내용은 다시 보내야 합니다.</p>
-    <button class="btn" id="link">공유 링크 보내기</button></div>`;
+  const row = (id, icon, title, desc) => `<button class="menu" id="${id}"><span class="ic"><svg class="i"><use href="#i-${icon}"/></svg></span>
+    <span class="main"><b>${title}</b><small>${desc}</small></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
+  return row('ics', 'bell', '폰 달력에 알림 넣기', '20년치 생신·기일을 달력 파일로 받아요')
+    + row('link', 'share', '가족에게 공유하기', '카톡으로 링크를 보내면 같은 관계도를 받아요')
+    + `<div class="note"><h3>알아 두세요</h3><ul>
+      <li>음력 날짜도 해마다 맞는 양력 날짜로 달력에 들어가요.</li>
+      <li>아이폰은 7일 전, 전날 오전 9시에 알림이 와요. 구글 캘린더는 가져올 때 알림이 빠지니 캘린더 기본 알림을 켜 두세요.</li>
+      <li>공유 링크는 보낸 시점의 내용이에요. 나중에 고친 내용은 다시 보내 주세요.</li></ul></div>`;
 }
 
+// ── 관계도 확대·축소: 마우스 휠, 두 손가락 핀치, 오른쪽 아래 버튼 ──
+let zoom = 1;
+const ZMIN = 0.4, ZMAX = 2;
+function setZoom(z, px, py) {
+  const c = $('.canvas'), fam = $('.fam');
+  if (!c) return;
+  z = Math.min(ZMAX, Math.max(ZMIN, z));
+  const r = c.getBoundingClientRect();
+  px ??= r.width / 2; py ??= r.height / 2; // 기준점(화면 좌표, 캔버스 기준) 아래 내용이 그대로 있게
+  const cx = (c.scrollLeft + px) / zoom, cy = (c.scrollTop + py) / zoom;
+  zoom = z;
+  fam.style.zoom = z;
+  c.scrollLeft = cx * z - px; c.scrollTop = cy * z - py;
+  const label = $('.zoom span'); if (label) label.textContent = Math.round(z * 100) + '%';
+}
+
+$('#view').addEventListener('wheel', e => {
+  const c = e.target.closest('.canvas');
+  if (!c) return;
+  e.preventDefault();
+  const r = c.getBoundingClientRect();
+  setZoom(zoom * Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+
+let pinch = null;
+const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+$('#view').addEventListener('touchstart', e => {
+  if (e.touches.length !== 2 || !e.target.closest('.canvas')) return;
+  endDrag(true); // 한 손가락으로 끌던 중이면 취소
+  pinch = { d: dist(e.touches), z: zoom };
+}, { passive: true });
+$('#view').addEventListener('touchmove', e => {
+  if (!pinch || e.touches.length !== 2) return;
+  e.preventDefault();
+  const r = $('.canvas').getBoundingClientRect();
+  const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left, my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+  setZoom(pinch.z * dist(e.touches) / pinch.d, mx, my);
+}, { passive: false });
+$('#view').addEventListener('touchend', e => { if (e.touches.length < 2) pinch = null; });
+
 function render() {
-  // 가족도는 카드가 새 자리로 미끄러져 붙고 떨어지게(FLIP 애니메이션)
+  const [title, sub] = TITLES[tab];
+  document.body.dataset.tab = tab;
+  $('#title').textContent = title;
+  $('#subtitle').textContent = sub;
+  $('#add').hidden = tab !== 'tree'; // 가족 추가는 관계도에서만
+  // 관계도는 카드가 새 자리로 미끄러져 붙고 떨어지게(FLIP 애니메이션), 스크롤 위치는 유지
   const old = new Map([...document.querySelectorAll('.fam .person')].map(el => [el.dataset.id, el.getBoundingClientRect()]));
+  const oc = $('.canvas'), scroll = oc && [oc.scrollLeft, oc.scrollTop];
   $('#view').innerHTML = tab === 'upcoming' ? upcoming() : tab === 'tree' ? tree() : share();
-  if (tab === 'tree' && old.size && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    document.querySelectorAll('.fam .person').forEach(el => {
-      const a = old.get(el.dataset.id), b = el.getBoundingClientRect();
-      if (a) el.animate([{ transform: `translate(${a.left - b.left}px, ${a.top - b.top}px)` }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
-    });
+  if (tab === 'tree' && $('.fam')) {
+    fitCanvas();
+    $('.fam').style.zoom = zoom;
+    if (scroll) [$('.canvas').scrollLeft, $('.canvas').scrollTop] = scroll;
+    if (old.size && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.querySelectorAll('.fam .person').forEach(el => {
+        const a = old.get(el.dataset.id), b = el.getBoundingClientRect();
+        if (a) el.animate([{ transform: `translate(${(a.left - b.left) / zoom}px, ${(a.top - b.top) / zoom}px)` }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      });
+    }
   }
-  $('#add').hidden = tab !== 'tree'; // 가족 추가는 가족도에서만
   if (tab === 'share') {
     $('#ics').onclick = () => {
-      if (!data.people.length) return alert('먼저 가족을 추가해 주세요.');
+      if (!data.people.length) return alert('먼저 관계도에서 가족을 추가해 주세요.');
       const url = URL.createObjectURL(new Blob([buildIcs(data.people, today())], { type: 'text/calendar' }));
       Object.assign(document.createElement('a'), { href: url, download: '우리집기념일.ics' }).click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
     $('#link').onclick = async () => {
-      if (!data.people.length) return alert('먼저 가족을 추가해 주세요.');
+      if (!data.people.length) return alert('먼저 관계도에서 가족을 추가해 주세요.');
       const url = `${location.origin}${location.pathname}#d=${encodeShare(data)}`;
       if (navigator.share) { try { await navigator.share({ title: '우리집 기념일', text: '우리 가족 생신·기일 달력이에요', url }); } catch {} }
-      else { await navigator.clipboard.writeText(url); alert('링크를 복사했습니다. 카톡에 붙여넣어 보내세요.'); }
+      else { await navigator.clipboard.writeText(url); alert('링크를 복사했어요. 카톡에 붙여넣어 보내 주세요.'); }
     };
   }
 }
 
-$('#view').addEventListener('click', e => { const el = e.target.closest('[data-id]'); if (el && !suppressClick) openForm(el.dataset.id); });
+// 관계도는 탭바 위까지 화면을 꽉 채운다 (제목 줄 높이가 기기마다 달라서 실제로 잰다)
+function fitCanvas() {
+  const c = $('.canvas');
+  if (c) c.style.height = Math.max(240, innerHeight - c.getBoundingClientRect().top - $('.tabbar').offsetHeight) + 'px';
+}
+addEventListener('resize', fitCanvas);
 
-// ── 가족도 드래그앤드롭: 다른 카드의 위(부모)·옆(배우자)·아래(자녀)에 놓으면 붙고, 빈 곳에 놓으면 떨어진다 ──
+$('#view').addEventListener('click', e => {
+  const z = e.target.closest('[data-zoom]');
+  if (z) return setZoom(z.dataset.zoom === '+' ? zoom * 1.25 : z.dataset.zoom === '-' ? zoom / 1.25 : 1);
+  const el = e.target.closest('[data-id]');
+  if (el && !suppressClick) openForm(el.dataset.id);
+});
+
+// ── 관계도 드래그앤드롭: 다른 카드의 위(부모)·옆(배우자)·아래(자녀)에 놓으면 붙고, 빈 곳에 놓으면 떨어진다 ──
 const ZONE = { parent: '부모로', spouse: '배우자로', child: '자녀로' };
 let drag = null, suppressClick = false;
 
 $('#view').addEventListener('pointerdown', e => {
   const card = e.target.closest('.fam .person');
-  if (card && e.button === 0) drag = { id: card.dataset.id, card, x: e.clientX, y: e.clientY };
+  if (card && e.button === 0 && !pinch) drag = { id: card.dataset.id, card, x: e.clientX, y: e.clientY };
 });
 
 function dropTarget(x, y) {
@@ -148,9 +226,8 @@ addEventListener('pointermove', e => {
   if (!drag.ghost) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return; // 살짝 누른 건 탭
     const r = drag.card.getBoundingClientRect();
-    drag.dx = drag.x - r.left; drag.dy = drag.y - r.top;
+    drag.dx = (drag.x - r.left) / zoom; drag.dy = (drag.y - r.top) / zoom; // 끌리는 카드는 100% 크기
     drag.ghost = Object.assign(drag.card.cloneNode(true), { className: drag.card.className + ' ghost' });
-    drag.ghost.style.width = r.width + 'px';
     document.body.append(drag.ghost);
     drag.card.classList.add('dragging');
     requestAnimationFrame(autoScroll);
@@ -163,19 +240,20 @@ function updateDrag() {
   drag.ghost.style.transform = `translate(${drag.px - drag.dx}px, ${drag.py - drag.dy}px)`;
   drag.t?.el.removeAttribute('data-drop');
   drag.t = dropTarget(drag.px, drag.py);
-  if (drag.t) { drag.t.el.dataset.drop = ZONE[drag.t.kind] + ' 붙이기'; drag.t.el.dataset.zone = drag.t.kind; }
+  if (drag.t) { drag.t.el.dataset.drop = ZONE[drag.t.kind] + ' 연결'; drag.t.el.dataset.zone = drag.t.kind; }
 }
 
-// 끌면서 화면(위아래)·가족도(좌우) 가장자리에 가면 그쪽으로 스크롤
+// 끌면서 관계도 가장자리에 가면 그쪽으로 스크롤
 function autoScroll() {
   if (!drag?.ghost) return;
-  const E = 48, step = (pos, lo, hi) => pos < lo + E ? -12 : pos > hi - E ? 12 : 0;
-  const vy = step(drag.py, 0, innerHeight);
-  const tree = $('.tree'), r = tree?.getBoundingClientRect();
-  const vx = r && drag.py >= r.top && drag.py <= r.bottom ? step(drag.px, r.left, r.right) : 0;
-  if (vy) scrollBy(0, vy);
-  if (vx) tree.scrollLeft += vx;
-  if (vx || vy) updateDrag();
+  const c = $('.canvas');
+  if (c) {
+    const E = 48, r = c.getBoundingClientRect(), step = (pos, lo, hi) => pos < lo + E ? -12 : pos > hi - E ? 12 : 0;
+    const vx = step(drag.px, r.left, r.right), vy = step(drag.py, r.top, r.bottom);
+    if (vx) c.scrollLeft += vx;
+    if (vy) c.scrollTop += vy;
+    if (vx || vy) updateDrag();
+  }
   requestAnimationFrame(autoScroll);
 }
 
@@ -190,10 +268,10 @@ function endDrag(cancelled) {
   if (d.t) {
     const err = link(data.people, d.id, d.t.id, d.t.kind);
     if (err) return alert(err);
-    commit(`${me.name}님을 ${byId(d.t.id).name}님의 ${ZONE[d.t.kind].slice(0, -1)}로 붙였어요.`, before);
+    commit(`${me.name}님을 ${byId(d.t.id).name}님의 ${ZONE[d.t.kind].slice(0, -1)}로 연결했어요`, before);
   } else if (me.parentId || me.spouseId) {
     detach(data.people, d.id);
-    commit(`${me.name}님을 떼어냈어요.`, before);
+    commit(`${me.name}님의 연결을 끊었어요`, before);
   }
 }
 addEventListener('pointerup', () => endDrag(false));
@@ -209,7 +287,11 @@ function commit(msg, before) {
   t.querySelector('button').onclick = () => { data = JSON.parse(before); save(); render(); t.hidden = true; };
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 5000);
 }
-$('#view').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.id) openForm(e.target.dataset.id); });
+$('#view').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (e.target.dataset.zoom) setZoom(1);
+  else if (e.target.dataset.id) openForm(e.target.dataset.id);
+});
 
 // 등록·수정 폼
 const dlg = $('#dlg'), form = $('#form');
@@ -223,9 +305,9 @@ function openForm(id) {
   $('#formTitle').textContent = id ? '가족 정보 수정' : '가족 추가';
   $('#del').hidden = !id;
   form.name.value = p.name || '';
+  form.querySelectorAll('[name=gender]').forEach(r => r.checked = r.value === p.gender);
   form.rel.value = p.rel || '';
   form.rel.dataset.orig = form.rel.value;
-  form.gender.value = p.gender || '';
   form.me.checked = id ? data.meId === id : !data.meId; // 첫 사람은 기본으로 '나'
   form.querySelectorAll('fieldset').forEach(fs => {
     const e = p.events.find(x => x.type === fs.dataset.ev) || {};
@@ -236,7 +318,7 @@ function openForm(id) {
     const eve = fs.querySelector('[name=eve]'); if (eve) eve.checked = !!e.eve;
   });
   dlg.showModal();
-  form.name.focus();
+  if (!id) form.name.focus();
 }
 
 form.onsubmit = e => {
@@ -251,7 +333,7 @@ form.onsubmit = e => {
     }
     events.push({ type: fs.dataset.ev, cal, m, d, leap: cal === 'lunar' && fs.querySelector('[name=leap]').checked, eve: !!fs.querySelector('[name=eve]')?.checked });
   }
-  // 관계(부모·배우자)는 가족도에서 드래그로만 정한다
+  // 관계(부모·배우자)는 관계도에서 드래그로만 정한다
   const before = JSON.stringify(data);
   const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null };
   const rel = form.rel.value.trim();
@@ -262,13 +344,13 @@ form.onsubmit = e => {
   else if (data.meId === p.id) data.meId = null;
   if (editing) return relabel(data), save(), render();
   data.people.push(p);
-  commit(`${p.name}님을 추가했어요. 카드를 끌어 가족에게 붙여 주세요.`, before);
-  document.querySelector(`.fam .person[data-id="${p.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  commit(`${p.name}님을 추가했어요. 카드를 끌어 가족에게 연결해 주세요`, before);
+  $('.canvas')?.scrollTo(0, 0); // 새 카드는 맨 위 대기칸에 있다
 };
 
 $('#del').onclick = () => {
   const p = byId(editing);
-  if (!confirm(`${p.name} 님을 삭제할까요? 연결된 가족 관계도 함께 끊어집니다.`)) return;
+  if (!confirm(`${p.name}님을 삭제할까요? 연결된 관계도 함께 끊어져요.`)) return;
   data.people = data.people.filter(x => x.id !== p.id);
   data.people.forEach(x => { if (x.parentId === p.id) x.parentId = null; if (x.spouseId === p.id) x.spouseId = null; });
   if (data.meId === p.id) data.meId = null;
