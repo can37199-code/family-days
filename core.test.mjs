@@ -164,4 +164,28 @@ assert.equal(kinship(F, '누나', '형수'), '올케');
 assert.equal(kinship(F, '누나', '매제'), '제부');
 assert.equal(kinship(F, '여동생', '매형'), '형부');
 assert.equal(kinship(F, '여동생', 'me'), '오빠');
+// 형제로 이은 뒤(빈 '부모님') 한 명에게 부모를 붙이면 형제 모두 그 부모 아래로
+{
+  const { fillPlaceholder } = await import('./core.js');
+  const mk = (id, gender) => ({ id, gender, parentId: null, spouseId: null, events: [] });
+  let Q = [mk('명완', 'M'), mk('수현', 'M'), mk('정진', 'M'), mk('성자', 'F')];
+  link(Q, '정진', '성자', 'spouse');
+  linkSibling(Q, '수현', '명완', false);
+  assert.equal(link(Q, '정진', '수현', 'parent'), null);        // 형 위에 아버지로
+  assert.equal(Q.some(p => p.placeholder), false);              // 빈 카드는 사라지고
+  assert.equal(kinship(Q, '명완', '정진'), '아버지');            // 나도 같은 부모 아래
+  assert.equal(kinship(Q, '명완', '성자'), '어머니');
+  assert.equal(kinship(Q, '명완', '수현'), '형');
+  // 이미 꼬인 데이터: 빈 '부모님' 카드 위에 사람을 놓아 채우기
+  Q = [mk('명완', 'M'), mk('수현', 'M'), mk('정진', 'M'), mk('성자', 'F')];
+  link(Q, '정진', '성자', 'spouse');
+  linkSibling(Q, '수현', '명완', false);
+  const ph = Q.find(p => p.placeholder).id;
+  Q.find(p => p.id === '수현').parentId = '정진';               // 형만 옮겨 간 상태(예전 버그)
+  assert.ok(fillPlaceholder(Q, '명완', ph));                    // 자기 부모 자리엔 못 넣음
+  assert.equal(fillPlaceholder(Q, '정진', ph), null);
+  assert.equal(Q.some(p => p.placeholder), false);
+  assert.equal(kinship(Q, '명완', '정진'), '아버지');
+  assert.equal(kinship(Q, '명완', '수현'), '형');
+}
 console.log('모든 검사 통과');

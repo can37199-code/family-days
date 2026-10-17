@@ -108,6 +108,8 @@ export function link(people, a, b, kind) {
     const [child, parent] = kind === 'child' ? [a, b] : [b, a];
     if (unit(people, child).includes(parent)) return '부부 사이는 부모·자녀로 붙일 수 없어요.';
     if (isAncestor(people, child, parent)) return '자기 자손을 부모로 둘 수는 없어요.';
+    const old = find(people, find(people, child).parentId);
+    if (old?.placeholder) return fillPlaceholder(people, parent, old.id); // 빈 '부모님' 아래 형제는 다 같이 옮긴다
     find(people, child).parentId = parent;
   }
   return null;
@@ -138,6 +140,19 @@ export function linkSibling(people, a, b, after) {
   }
   find(people, a).parentId = tb.parentId;
   moveSibling(people, a, b, after);
+  return null;
+}
+
+// a가 빈 '부모님' 카드(ph) 자리를 채운다: ph의 자녀는 a의 자녀가 되고 ph는 지워진다
+export function fillPlaceholder(people, a, ph) {
+  if (a === ph) return null;
+  if (isAncestor(people, ph, a)) return '자기 부모 자리에는 넣을 수 없어요.';
+  const p = find(people, ph), me = find(people, a);
+  for (const c of people) if (c.parentId === ph) c.parentId = a;
+  if (p.parentId && !me.parentId && !isAncestor(people, a, p.parentId)) me.parentId = p.parentId;
+  if (p.spouseId && !me.spouseId) setSpouse(people, a, p.spouseId);
+  else if (p.spouseId) setSpouse(people, ph, null);
+  people.splice(people.indexOf(p), 1);
   return null;
 }
 

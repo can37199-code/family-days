@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, linkSibling, prunePlaceholders, siblingTerm, genderOf, isSibling } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, linkSibling, prunePlaceholders, siblingTerm, genderOf, isSibling, fillPlaceholder } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -89,7 +89,8 @@ function tree() {
     if (s) done.add(s.id);
     const ids = [p.id, s?.id];
     const kids = data.people.filter(c => c.parentId && ids.includes(c.parentId) && !done.has(c.id));
-    return `<li><span class="couple">${card(p)}${s ? `<span class="heart" aria-hidden="true"></span>${card(s)}` : ''}</span>
+    const [left, right] = s && genderOf(data.people, s) === 'M' && genderOf(data.people, p) !== 'M' ? [s, p] : [p, s]; // 부부는 남편이 왼쪽
+    return `<li><span class="couple">${card(left)}${right ? `<span class="heart" aria-hidden="true"></span>${card(right)}` : ''}</span>
       ${kids.length ? `<ul>${kids.map(k => done.has(k.id) ? '' : node(k)).join('')}</ul>` : ''}</li>`;
   };
   // 아무와도 안 이어진 사람(막 추가한 사람)은 위쪽 대기칸에 모아 끌어 붙이기 쉽게
@@ -284,7 +285,8 @@ function dropTarget(x, y) {
   const el = document.elementFromPoint(x, y)?.closest('.fam .person');
   if (!el || el === drag.card) return null;
   const r = el.getBoundingClientRect(), ry = (y - r.top) / r.height, rx = (x - r.left) / r.width;
-  const kind = rx < 0.22 ? 'before' : rx > 0.78 ? 'after' : ry < 0.3 ? 'parent' : ry > 0.7 ? 'child' : 'spouse';
+  const kind = byId(el.dataset.id)?.placeholder ? 'fill' // 빈 '부모님' 카드는 어디에 놓든 그 자리 채우기
+    : rx < 0.22 ? 'before' : rx > 0.78 ? 'after' : ry < 0.3 ? 'parent' : ry > 0.7 ? 'child' : 'spouse';
   return { el, id: el.dataset.id, kind };
 }
 
@@ -310,7 +312,7 @@ function updateDrag() {
   if (drag.t) {
     drag.t.el.dataset.zone = drag.t.kind;
     const d = byId(drag.id), t = byId(drag.t.id);
-    hint.textContent = askSide(drag.t.kind, d, t)
+    hint.textContent = drag.t.kind === 'fill' ? '부모님 자리에 넣기' : askSide(drag.t.kind, d, t)
       ? `${roleTerm(drag.t.kind, d, t)} 또는 ${ro(ROLE.spouse[d.gender || ''])} 연결`
       : `${ro(roleTerm(drag.t.kind, d, t))} 연결`;
   } else hint.textContent = byId(drag.id).parentId || byId(drag.id).spouseId ? '여기 놓으면 연결 끊기' : '가족 카드 위에 놓아 주세요';
@@ -350,6 +352,11 @@ function endDrag(cancelled) {
 const askSide = (kind, d, t) => (kind === 'before' || kind === 'after') && !isSibling(data.people, d.id, t.id);
 
 async function finishLink(kind, me, t, before) {
+  if (kind === 'fill') { // 빈 '부모님' 카드를 이 사람으로 채운다
+    const err = fillPlaceholder(data.people, me.id, t.id);
+    if (err) return alert(err);
+    return commit(`${me.name}님을 부모님 자리에 넣었어요`, before);
+  }
   if (askSide(kind, me, t)) {
     const choice = await choose(`${me.name}님을 어떻게 연결할까요?`, [
       { value: kind, label: `${t.name}님의 ${roleTerm(kind, me, t)}`, sub: '형제·자매로 연결' },
