@@ -314,16 +314,22 @@ addEventListener('pointermove', e => {
 // 끄는 카드는 작게 손가락 오른쪽 아래에, 안내는 손가락 위에 띄워 놓을 자리를 가리지 않게
 function updateDrag() {
   drag.ghost.style.transform = `translate(${drag.px + 14}px, ${drag.py + 18}px) scale(.62)`;
-  drag.t?.el.removeAttribute('data-zone');
-  drag.t = dropTarget(drag.px, drag.py);
-  const hint = $('#dragHint');
-  if (drag.t) {
-    drag.t.el.dataset.zone = drag.t.kind;
-    const d = byId(drag.id), t = byId(drag.t.id);
-    hint.textContent = drag.t.kind === 'fill' ? '부모님 자리에 넣기' : askSide(drag.t.kind, d, t)
-      ? `${roleTerm(drag.t.kind, d, t)} 또는 ${ro(ROLE.spouse[d.gender || ''])} 연결`
-      : `${ro(roleTerm(drag.t.kind, d, t))} 연결`;
-  } else hint.textContent = byId(drag.id).parentId || byId(drag.id).spouseId ? '여기 놓으면 연결 끊기' : '가족 카드 위에 놓아 주세요';
+  const next = dropTarget(drag.px, drag.py), hint = $('#dragHint');
+  document.body.classList.add('drag-on');
+  // 놓을 곳이 바뀔 때만 표시를 다시 그린다 (매번 그리면 깜빡임 애니메이션이 처음부터 다시 시작됨)
+  if (!('t' in drag) || next?.el !== drag.t?.el || next?.kind !== drag.t?.kind) {
+    drag.t?.el.removeAttribute('data-zone');
+    if (next) { next.el.dataset.zone = next.kind; navigator.vibrate?.(12); } // 안드로이드는 살짝 진동
+    drag.t = next;
+    const ARROW = { parent: '↑', child: '↓', before: '←', after: '→', spouse: '♥', fill: '↻' };
+    const me = byId(drag.id), t = next && byId(next.id);
+    const text = !next ? (me.parentId || me.spouseId ? '여기 놓으면 연결 끊기' : '가족 카드 위에 놓아 주세요')
+      : next.kind === 'fill' ? '부모님 자리에 넣기'
+      : askSide(next.kind, me, t) ? `${roleTerm(next.kind, me, t)} 또는 ${ro(ROLE.spouse[me.gender || ''])} 연결`
+      : `${t.name}님의 ${ro(roleTerm(next.kind, me, t))} 연결`;
+    hint.innerHTML = `${next ? `<i>${ARROW[next.kind]}</i>` : ''}<span>${h(text)}</span>`;
+    hint.className = next ? 'on' : me.parentId || me.spouseId ? 'cut' : '';
+  }
   hint.style.transform = `translate(${drag.px}px, ${drag.py - 52}px) translateX(-50%)`;
   hint.hidden = false;
 }
@@ -345,7 +351,7 @@ function endDrag(cancelled) {
   const d = drag; drag = null;
   if (!d.ghost) return;
   d.ghost.remove(); d.card.classList.remove('dragging'); d.t?.el.removeAttribute('data-zone');
-  $('#dragHint').hidden = true;
+  $('#dragHint').hidden = true; document.body.classList.remove('drag-on');
   suppressClick = true; setTimeout(() => suppressClick = false);
   if (cancelled) return;
   const before = JSON.stringify(data), me = byId(d.id), t = d.t && byId(d.t.id);

@@ -118,18 +118,27 @@
   .couple > .person:last-child:not(:first-child) { border-radius:0 16px 16px 0; }
   .heart { pointer-events:none; width:1px; background:var(--line); margin:14px 0; display:flex; align-items:center; justify-content:center; z-index:1; }
   .heart::before { content:""; flex:none; width:20px; height:20px; border-radius:50%; background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f0548b' d='M12 20s-7-4.4-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.6 12 20 12 20z'/%3E%3C/svg%3E") center/14px no-repeat; box-shadow:0 0 0 1px var(--line); }
-  .person.dragging { opacity:.3; }
-  .person.ghost { position:fixed; left:0; top:0; z-index:50; pointer-events:none; opacity:.85; transform-origin:0 0; box-shadow:var(--shadow-lg); border-radius:16px !important; }
-  /* 놓을 자리: 그 방향 가장자리에 파란 막대 (위=부모, 아래=자녀, 왼쪽=손위, 오른쪽=손아래, 가운데=배우자는 테두리) */
-  .person[data-zone] { z-index:2; }
-  .person[data-zone=parent] { box-shadow:0 -5px 0 var(--accent), var(--shadow) !important; }
-  .person[data-zone=child] { box-shadow:0 5px 0 var(--accent), var(--shadow) !important; }
-  .person[data-zone=before] { box-shadow:-5px 0 0 var(--accent), var(--shadow) !important; }
-  .person[data-zone=after] { box-shadow:5px 0 0 var(--accent), var(--shadow) !important; }
-  .person[data-zone=spouse] { box-shadow:0 0 0 3px var(--accent), var(--shadow) !important; }
-  .person[data-zone=fill] { box-shadow:0 0 0 3px var(--accent), var(--shadow) !important; background:var(--accent-soft); }
-  /* 끄는 동안 손가락 위에 뜨는 안내 — 카드에 가려지지 않게 맨 위 */
-  #dragHint { position:fixed; left:0; top:0; z-index:70; pointer-events:none; background:var(--ink); color:var(--bg); font-size:14px; font-weight:700; padding:7px 12px; border-radius:10px; white-space:nowrap; box-shadow:var(--shadow-lg); }
+  .person.dragging { opacity:.25; filter:grayscale(1); }
+  .person.ghost { position:fixed; left:0; top:0; z-index:50; pointer-events:none; opacity:.9; transform-origin:0 0; box-shadow:0 0 0 2px var(--accent), var(--shadow-lg); border-radius:16px !important; }
+  /* 끄는 동안: 나머지 카드는 흐리게, 놓을 카드는 크게·밝게 */
+  body.drag-on .fam .person:not([data-zone]):not(.dragging) { opacity:.4; transition:opacity .15s; }
+  body.drag-on .fam .heart { opacity:.4; }
+  .person[data-zone] { z-index:3; transform:scale(1.08); transition:transform .12s ease; box-shadow:0 0 0 3px var(--accent), 0 0 0 9px var(--accent-soft), var(--shadow-lg) !important; }
+  /* 놓을 방향: 그쪽 바깥에 굵은 막대가 깜빡임 (위=부모, 아래=자녀, 왼쪽=손위, 오른쪽=손아래) */
+  .person[data-zone]::before { content:''; position:absolute; background:var(--accent); border-radius:4px; box-shadow:0 0 12px var(--accent); animation:zone .8s ease-in-out infinite alternate; }
+  .person[data-zone=parent]::before { left:12%; right:12%; top:-14px; height:7px; }
+  .person[data-zone=child]::before { left:12%; right:12%; bottom:-14px; height:7px; }
+  .person[data-zone=before]::before { top:12%; bottom:12%; left:-14px; width:7px; }
+  .person[data-zone=after]::before { top:12%; bottom:12%; right:-14px; width:7px; }
+  .person[data-zone=spouse]::before, .person[data-zone=fill]::before { display:none; }
+  .person[data-zone=spouse], .person[data-zone=fill] { background:var(--accent-soft); }
+  @keyframes zone { from { opacity:.45; } to { opacity:1; } }
+  @media (prefers-reduced-motion: reduce) { .person[data-zone]::before { animation:none; } .person[data-zone] { transform:none; } }
+  /* 끄는 동안 손가락 위에 뜨는 안내 — 방향 화살표 + 무엇으로 연결되는지 */
+  #dragHint { position:fixed; left:0; top:0; z-index:70; pointer-events:none; display:flex; align-items:center; gap:6px; background:var(--ink); color:var(--bg); font-size:15px; font-weight:700; padding:9px 14px; border-radius:12px; white-space:nowrap; box-shadow:var(--shadow-lg); }
+  #dragHint.on { background:var(--accent); color:var(--accent-ink); }
+  #dragHint.cut { background:var(--danger); color:#fff; }
+  #dragHint i { font-style:normal; font-size:17px; line-height:1; }
   /* '나' 카드 */
   .person.me { background:var(--accent-soft); box-shadow:inset 0 0 0 2px var(--accent), var(--shadow); }
   .person.me b { color:var(--accent); }
