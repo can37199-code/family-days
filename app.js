@@ -98,6 +98,19 @@ function tree() {
   const tray = loose.length ? `<div class="tray"><div class="cap">아직 연결 안 된 가족 · 끌어서 가족 카드에 놓아 주세요</div>${loose.map(card).join('')}</div>` : '';
   // 부모가 등록 안 된 사람부터. 배우자 쪽에 부모가 있으면 그쪽 가지에서 함께 그린다.
   const roots = data.people.filter(p => !done.has(p.id) && !byId(p.parentId) && !byId(byId(p.spouseId)?.parentId));
+  // '나'의 부모 라인을 가장 먼저 그려서 나(와 배우자)가 내 부모 아래에 이어지게 한다.
+  // 배우자 쪽 부모는 그다음 가지에 "○○의 부모님"으로 붙는다. '나'를 바꾸면 기준도 바뀐다.
+  const myTop = (() => {
+    let x = byId(data.meId);
+    for (const seen = new Set(); x && !seen.has(x.id);) {
+      seen.add(x.id);
+      const up = byId(x.parentId) || byId(byId(x.spouseId)?.parentId);
+      if (!up) break;
+      x = up;
+    }
+    return x;
+  })();
+  if (myTop) roots.sort((a, b) => [b.id, b.spouseId].includes(myTop.id) - [a.id, a.spouseId].includes(myTop.id));
   // 양가처럼 자녀가 이미 다른 가지에 그려진 경우엔 "○○의 부모님"으로 이어 준다.
   let html = roots.map(p => {
     if (done.has(p.id)) return '';
@@ -131,12 +144,19 @@ function applyView() {
   fam.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
   const label = $('.zoom span'); if (label) label.textContent = Math.round(zoom * 100) + '%';
 }
-// 처음 열 때·100%를 누를 때 관계도를 가로 가운데로
-function centerView() {
+// 처음 열 때·100%를 누를 때: 다 들어오면 가로 가운데, 넘치면 '나' 카드가 가운데 오게
+function centerView(focusMe = true) {
   const c = $('.canvas'), fam = $('.fam');
   if (!c || !fam) return;
   panX = Math.max(16, (c.clientWidth - fam.offsetWidth * zoom) / 2);
   panY = 16;
+  const me = focusMe && $(`.fam .person[data-id="${data.meId}"]`);
+  if (me) {
+    const f = fam.getBoundingClientRect(), m = me.getBoundingClientRect();
+    const mx = (m.left - f.left) / zoom + me.offsetWidth / 2, my = (m.top - f.top) / zoom + me.offsetHeight / 2;
+    if (fam.offsetWidth * zoom > c.clientWidth - 32) panX = c.clientWidth / 2 - mx * zoom;
+    if (my * zoom + 16 > c.clientHeight * 0.6) panY = c.clientHeight * 0.5 - my * zoom;
+  }
   applyView();
 }
 const resetView = () => { zoom = 1; centerView(); };
@@ -415,12 +435,14 @@ form.onsubmit = e => {
   const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null, rel: '' };
   Object.assign(p, { name: form.name.value.trim(), gender: form.gender.value, events });
   delete p.placeholder; // 빈 '부모님' 카드도 정보를 넣으면 보통 카드
+  const oldMe = data.meId;
   if (form.me.checked) data.meId = p.id;
   else if (data.meId === p.id) data.meId = null;
+  if (data.meId !== oldMe) centered = false; // '나'가 바뀌면 관계도를 새 '나' 기준으로 다시 맞춤
   if (editing) return relabel(data), save(), render();
   data.people.push(p);
   commit(`${p.name}님을 추가했어요. 카드를 끌어 가족에게 연결해 주세요`, before);
-  centerView(); // 새 카드는 맨 위 대기칸에 있다
+  centerView(false); // 새 카드는 맨 위 대기칸에 있다
 };
 
 $('#del').onclick = () => {
