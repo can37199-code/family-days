@@ -39,6 +39,7 @@ document.querySelectorAll('.tabbar button').forEach(b => b.onclick = () => {
   tab = b.dataset.tab;
   document.querySelectorAll('.tabbar button').forEach(x => x.setAttribute('aria-selected', x === b));
   scrollTo(0, 0);
+  centered = false; // 관계도를 다시 열면 가운데로
   render();
 });
 
@@ -114,21 +115,50 @@ function share() {
       <li>공유 링크는 보낸 시점의 내용이에요. 나중에 고친 내용은 다시 보내 주세요.</li></ul></div>`;
 }
 
-// ── 관계도 확대·축소: 마우스 휠, 두 손가락 핀치, 오른쪽 아래 버튼 ──
-let zoom = 1;
+// ── 관계도 보기: 바탕을 끌어 이동, 마우스 휠·두 손가락 핀치·버튼으로 확대 축소 ──
+let zoom = 1, panX = 0, panY = 0, centered = false;
 const ZMIN = 0.4, ZMAX = 2;
-function setZoom(z, px, py) {
+function applyView() {
+  const fam = $('.fam');
+  if (!fam) return;
+  fam.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  const label = $('.zoom span'); if (label) label.textContent = Math.round(zoom * 100) + '%';
+}
+// 처음 열 때·100%를 누를 때 관계도를 가로 가운데로
+function centerView() {
   const c = $('.canvas'), fam = $('.fam');
+  if (!c || !fam) return;
+  panX = Math.max(16, (c.clientWidth - fam.offsetWidth * zoom) / 2);
+  panY = 16;
+  applyView();
+}
+const resetView = () => { zoom = 1; centerView(); };
+function setZoom(z, px, py) {
+  const c = $('.canvas');
   if (!c) return;
   z = Math.min(ZMAX, Math.max(ZMIN, z));
-  const r = c.getBoundingClientRect();
-  px ??= r.width / 2; py ??= r.height / 2; // 기준점(화면 좌표, 캔버스 기준) 아래 내용이 그대로 있게
-  const cx = (c.scrollLeft + px) / zoom, cy = (c.scrollTop + py) / zoom;
+  px ??= c.clientWidth / 2; py ??= c.clientHeight / 2; // 기준점(캔버스 안 좌표) 아래 내용이 그대로 있게
+  panX = px - (px - panX) * z / zoom; panY = py - (py - panY) * z / zoom;
   zoom = z;
-  fam.style.zoom = z;
-  c.scrollLeft = cx * z - px; c.scrollTop = cy * z - py;
-  const label = $('.zoom span'); if (label) label.textContent = Math.round(z * 100) + '%';
+  applyView();
 }
+
+let pan = null;
+$('#view').addEventListener('pointerdown', e => {
+  const c = e.target.closest('.canvas');
+  if (!c || e.target.closest('.person') || e.button !== 0 || pinch) return;
+  pan = { id: e.pointerId, x: e.clientX - panX, y: e.clientY - panY };
+  try { c.setPointerCapture(e.pointerId); } catch {} // 캡처가 안 돼도 이동은 window 이벤트로 이어진다
+  c.classList.add('panning');
+});
+addEventListener('pointermove', e => {
+  if (pan?.id !== e.pointerId) return;
+  panX = e.clientX - pan.x; panY = e.clientY - pan.y;
+  applyView();
+});
+const endPan = () => { pan = null; $('.canvas')?.classList.remove('panning'); };
+addEventListener('pointerup', endPan);
+addEventListener('pointercancel', endPan);
 
 $('#view').addEventListener('wheel', e => {
   const c = e.target.closest('.canvas');
@@ -142,7 +172,7 @@ let pinch = null;
 const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 $('#view').addEventListener('touchstart', e => {
   if (e.touches.length !== 2 || !e.target.closest('.canvas')) return;
-  endDrag(true); // 한 손가락으로 끌던 중이면 취소
+  endDrag(true); endPan(); // 한 손가락으로 끌던 중이면 취소
   pinch = { d: dist(e.touches), z: zoom };
 }, { passive: true });
 $('#view').addEventListener('touchmove', e => {
@@ -160,14 +190,12 @@ function render() {
   $('#title').textContent = title;
   $('#subtitle').textContent = sub;
   $('#add').hidden = tab !== 'tree'; // 가족 추가는 관계도에서만
-  // 관계도는 카드가 새 자리로 미끄러져 붙고 떨어지게(FLIP 애니메이션), 스크롤 위치는 유지
+  // 관계도는 카드가 새 자리로 미끄러져 붙고 떨어지게(FLIP 애니메이션), 보던 위치·배율은 유지
   const old = new Map([...document.querySelectorAll('.fam .person')].map(el => [el.dataset.id, el.getBoundingClientRect()]));
-  const oc = $('.canvas'), scroll = oc && [oc.scrollLeft, oc.scrollTop];
   $('#view').innerHTML = tab === 'upcoming' ? upcoming() : tab === 'tree' ? tree() : share();
   if (tab === 'tree' && $('.fam')) {
     fitCanvas();
-    $('.fam').style.zoom = zoom;
-    if (scroll) [$('.canvas').scrollLeft, $('.canvas').scrollTop] = scroll;
+    if (centered) applyView(); else { centerView(); centered = true; }
     if (old.size && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       document.querySelectorAll('.fam .person').forEach(el => {
         const a = old.get(el.dataset.id), b = el.getBoundingClientRect();
@@ -200,7 +228,7 @@ addEventListener('resize', fitCanvas);
 
 $('#view').addEventListener('click', e => {
   const z = e.target.closest('[data-zoom]');
-  if (z) return setZoom(z.dataset.zoom === '+' ? zoom * 1.25 : z.dataset.zoom === '-' ? zoom / 1.25 : 1);
+  if (z) return z.dataset.zoom === '1' ? resetView() : setZoom(z.dataset.zoom === '+' ? zoom * 1.25 : zoom / 1.25);
   const el = e.target.closest('[data-id]');
   if (el && !suppressClick) openForm(el.dataset.id);
 });
@@ -250,9 +278,7 @@ function autoScroll() {
   if (c) {
     const E = 48, r = c.getBoundingClientRect(), step = (pos, lo, hi) => pos < lo + E ? -12 : pos > hi - E ? 12 : 0;
     const vx = step(drag.px, r.left, r.right), vy = step(drag.py, r.top, r.bottom);
-    if (vx) c.scrollLeft += vx;
-    if (vy) c.scrollTop += vy;
-    if (vx || vy) updateDrag();
+    if (vx || vy) { panX -= vx; panY -= vy; applyView(); updateDrag(); }
   }
   requestAnimationFrame(autoScroll);
 }
@@ -289,7 +315,7 @@ function commit(msg, before) {
 }
 $('#view').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
-  if (e.target.dataset.zoom) setZoom(1);
+  if (e.target.dataset.zoom) resetView();
   else if (e.target.dataset.id) openForm(e.target.dataset.id);
 });
 
@@ -345,7 +371,7 @@ form.onsubmit = e => {
   if (editing) return relabel(data), save(), render();
   data.people.push(p);
   commit(`${p.name}님을 추가했어요. 카드를 끌어 가족에게 연결해 주세요`, before);
-  $('.canvas')?.scrollTo(0, 0); // 새 카드는 맨 위 대기칸에 있다
+  centerView(); // 새 카드는 맨 위 대기칸에 있다
 };
 
 $('#del').onclick = () => {
