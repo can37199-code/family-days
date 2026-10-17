@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>우리집 기념일</title>
+<meta name="theme-color" content="#b4532a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root { --bg:#faf6f1; --card:#fff; --ink:#2b2420; --sub:#7a6d64; --line:#e7ddd3; --accent:#b4532a; --soft:#f6e7dc; --memorial:#55606e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1d1a18; --card:#282320; --ink:#f1e9e2; --sub:#a99c92; --line:#3c3430; --accent:#e08a5f; --soft:#3a2a22; --memorial:#9fb0c2; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; padding-bottom:96px; }
+  header { padding:20px 16px 8px; }
+  h1 { margin:0; font-size:22px; }
+  nav { display:flex; gap:6px; padding:8px 16px; position:sticky; top:0; background:var(--bg); z-index:2; border-bottom:1px solid var(--line); }
+  nav button { flex:1; padding:10px; border:0; border-radius:10px; background:transparent; color:var(--sub); font:inherit; font-weight:600; cursor:pointer; }
+  nav button[aria-selected=true] { background:var(--soft); color:var(--accent); }
+  main { padding:16px; max-width:720px; margin:0 auto; }
+  .empty { text-align:center; color:var(--sub); padding:48px 16px; }
+  .item { display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; cursor:pointer; }
+  .dday { min-width:64px; text-align:center; font-weight:700; color:var(--accent); font-size:18px; }
+  .item.memorial .dday { color:var(--memorial); }
+  .item .what { flex:1; }
+  .item .sub, .sub { color:var(--sub); font-size:14px; }
+  .tree { overflow-x:auto; padding:8px 0 24px; display:flex; gap:40px; align-items:flex-start; }
+  .branch { flex:0 0 auto; margin:0 auto; text-align:center; }
+  .branch > .sub { margin-bottom:8px; }
+  .tree ul { padding-top:20px; position:relative; display:flex; justify-content:center; margin:0; padding-left:0; }
+  .tree li { list-style:none; position:relative; padding:20px 6px 0; text-align:center; }
+  .tree li::before, .tree li::after { content:""; position:absolute; top:0; right:50%; width:50%; height:20px; border-top:2px solid var(--line); }
+  .tree li::after { right:auto; left:50%; border-left:2px solid var(--line); }
+  .tree li:only-child::before, .tree li:only-child::after { display:none; }
+  .tree li:only-child { padding-top:0; }
+  .tree li:first-child::before, .tree li:last-child::after { border:0 none; }
+  .tree li:last-child::before { border-right:2px solid var(--line); border-radius:0 6px 0 0; }
+  .tree li:first-child::after { border-radius:6px 0 0 0; }
+  .tree ul ul::before { content:""; position:absolute; top:0; left:50%; height:20px; border-left:2px solid var(--line); }
+  .branch > ul { padding-top:0; }
+  .couple { display:inline-flex; gap:4px; align-items:center; }
+  .person { display:inline-block; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 12px; min-width:84px; cursor:pointer; font:inherit; color:inherit; }
+  .person b { display:block; white-space:nowrap; }
+  .person small { color:var(--sub); white-space:nowrap; }
+  .person.gone { border-style:dashed; }
+  .heart { color:var(--accent); }
+  .fab { position:fixed; right:16px; bottom:max(16px, env(safe-area-inset-bottom)); background:var(--accent); color:#fff; border:0; border-radius:28px; padding:14px 22px; font:inherit; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,.2); cursor:pointer; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .panel h2 { margin:0 0 6px; font-size:17px; }
+  .btn { display:inline-block; border:0; border-radius:10px; padding:12px 16px; font:inherit; font-weight:600; background:var(--accent); color:#fff; cursor:pointer; margin-top:8px; }
+  .btn.ghost { background:var(--soft); color:var(--accent); }
+  .btn.danger { background:transparent; color:#c0392b; }
+  dialog { border:0; border-radius:16px; padding:0; width:min(480px, calc(100% - 24px)); background:var(--card); color:var(--ink); }
+  dialog::backdrop { background:rgba(0,0,0,.4); }
+  form { padding:18px; }
+  form h2 { margin:0 0 12px; font-size:18px; }
+  label { display:block; font-size:14px; color:var(--sub); margin:10px 0 4px; }
+  input, select { width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; font:inherit; background:var(--bg); color:var(--ink); }
+  fieldset { border:1px solid var(--line); border-radius:12px; margin:14px 0 0; padding:8px 12px 12px; }
+  legend { font-weight:600; padding:0 4px; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row > * { flex:1; }
+  .check { display:flex; gap:6px; align-items:center; color:var(--ink); font-size:14px; margin-top:8px; }
+  .check input { width:auto; }
+  .actions { display:flex; justify-content:space-between; gap:8px; margin-top:16px; }
+  :focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+</style>
+</head>
+<body>
+<header><h1>우리집 기념일</h1><div class="sub">양가 부모님 생신·기일, 음력도 매년 자동 계산</div></header>
+<nav role="tablist">
+  <button role="tab" data-tab="upcoming" aria-selected="true">다가오는 날</button>
+  <button role="tab" data-tab="tree" aria-selected="false">가족도</button>
+  <button role="tab" data-tab="share" aria-selected="false">알림·공유</button>
+</nav>
+<main id="view"></main>
+<button class="fab" id="add">＋ 가족 추가</button>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <h2 id="formTitle">가족 추가</h2>
+    <label for="f-name">이름</label>
+    <input id="f-name" name="name" required placeholder="예: 김영희">
+    <label for="f-rel">관계 (나와의)</label>
+    <input id="f-rel" name="rel" placeholder="예: 어머니, 시아버지">
+    <div class="row">
+      <div><label for="f-parent">부모</label><select id="f-parent" name="parentId"></select></div>
+      <div><label for="f-spouse">배우자</label><select id="f-spouse" name="spouseId"></select></div>
+    </div>
+    <fieldset data-ev="생신">
+      <legend>생신</legend>
+      <div class="row">
+        <select name="cal" aria-label="생신 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
+        <input name="m" type="number" min="1" max="12" placeholder="월" aria-label="생신 월">
+        <input name="d" type="number" min="1" max="31" placeholder="일" aria-label="생신 일">
+      </div>
+      <label class="check"><input type="checkbox" name="leap"> 윤달</label>
+    </fieldset>
+    <fieldset data-ev="기일">
+      <legend>기일</legend>
+      <div class="row">
+        <select name="cal" aria-label="기일 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
+        <input name="m" type="number" min="1" max="12" placeholder="월" aria-label="기일 월">
+        <input name="d" type="number" min="1" max="31" placeholder="일" aria-label="기일 일">
+      </div>
+      <label class="check"><input type="checkbox" name="leap"> 윤달</label>
+      <label class="check"><input type="checkbox" name="eve"> 제사는 전날 밤에 지냄</label>
+    </fieldset>
+    <div class="actions">
+      <button type="button" class="btn danger" id="del">삭제</button>
+      <span><button type="button" class="btn ghost" id="cancel">취소</button> <button class="btn" value="save">저장</button></span>
+    </div>
+  </form>
+</dialog>
+
+<script src="lunar.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
