@@ -61,7 +61,7 @@ if (/^#[sd]=/.test(location.hash)) {
 
 const TITLES = {
   upcoming: ['다가오는 날', '양가 생일·기일을 음력까지 챙겨 드려요'],
-  tree: ['관계도', '카드의 위는 부모, 가운데는 배우자, 아래는 아들·딸, 왼쪽 끝은 형·누나, 오른쪽 끝은 동생으로 연결돼요'],
+  tree: ['관계도', '카드를 1초 꾹 눌러 옮기세요. 위는 부모, 가운데는 배우자, 아래는 아들·딸, 왼쪽 끝은 형·누나, 오른쪽 끝은 동생으로 연결돼요'],
   share: ['알림·공유', ''],
 };
 let tab = 'upcoming';
@@ -206,10 +206,11 @@ $('#view').addEventListener('pointerdown', e => {
 });
 addEventListener('pointermove', e => {
   if (pan?.id !== e.pointerId) return;
-  panX = e.clientX - pan.x; panY = e.clientY - pan.y;
+  panX = e.clientX - pan.x; panY = e.clientY - pan.y; pan.moved = true;
   applyView();
 });
-const endPan = () => { pan = null; $('.canvas')?.classList.remove('panning'); };
+// 바탕을 끌었다 놓은 건 '누름'이 아니다: 손을 뗀 곳이 카드여도 수정 창을 열지 않는다
+const endPan = () => { if (pan?.moved) { suppressClick = true; setTimeout(() => suppressClick = false); } pan = null; $('.canvas')?.classList.remove('panning'); };
 addEventListener('pointerup', endPan);
 addEventListener('pointercancel', endPan);
 
@@ -302,10 +303,28 @@ const roleTerm = (kind, d, t) => kind === 'before' || kind === 'after'
   : ROLE[kind][d.gender || ''];
 let drag = null, suppressClick = false;
 
+// 카드는 1초 꾹 눌러야 들려서 끌 수 있다. 그 전에 움직이면 카드가 아니라 관계도 바탕을 옮긴다.
+// (짧게 끌다가 카드가 따라와 빈 곳에 놓여 연결이 끊기던 문제)
+const HOLD = 1000;
 $('#view').addEventListener('pointerdown', e => {
   const card = e.target.closest('.fam .person');
-  if (card && e.button === 0 && !pinch) drag = { id: card.dataset.id, card, x: e.clientX, y: e.clientY };
+  if (!card || e.button !== 0 || pinch) return;
+  drag = { id: card.dataset.id, card, x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, pid: e.pointerId };
+  card.classList.add('pressing');
+  drag.timer = setTimeout(liftCard, HOLD);
 });
+$('#view').addEventListener('contextmenu', e => { if (e.target.closest('.fam .person')) e.preventDefault(); }); // 길게 누를 때 뜨는 메뉴 막기
+
+function liftCard() {
+  if (!drag || drag.ghost) return;
+  drag.card.classList.remove('pressing');
+  drag.ghost = Object.assign(drag.card.cloneNode(true), { className: drag.card.className + ' ghost' });
+  document.body.append(drag.ghost);
+  drag.card.classList.add('dragging');
+  navigator.vibrate?.(25);
+  requestAnimationFrame(autoScroll);
+  updateDrag();
+}
 
 function dropTarget(x, y) {
   const el = document.elementFromPoint(x, y)?.closest('.fam .person');
@@ -317,36 +336,39 @@ function dropTarget(x, y) {
 }
 
 addEventListener('pointermove', e => {
-  if (!drag) return;
-  if (!drag.ghost) {
-    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return; // 살짝 누른 건 탭
-    drag.ghost = Object.assign(drag.card.cloneNode(true), { className: drag.card.className + ' ghost' });
-    document.body.append(drag.ghost);
-    drag.card.classList.add('dragging');
-    requestAnimationFrame(autoScroll);
-  }
+  if (!drag || e.pointerId !== drag.pid) return;
   drag.px = e.clientX; drag.py = e.clientY;
-  updateDrag();
+  if (drag.ghost) return updateDrag();
+  if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return; // 손 떨림 정도는 무시
+  // 1초 전에 움직임 → 카드 대신 바탕 이동으로 넘긴다
+  clearTimeout(drag.timer);
+  drag.card.classList.remove('pressing');
+  pan = { id: drag.pid, x: drag.x - panX, y: drag.y - panY };
+  $('.canvas')?.classList.add('panning');
+  drag = null;
+  panX = e.clientX - pan.x; panY = e.clientY - pan.y; pan.moved = true; applyView();
 });
 
 // 끄는 카드는 작게 손가락 오른쪽 아래에, 안내는 손가락 위에 띄워 놓을 자리를 가리지 않게
 function updateDrag() {
   drag.ghost.style.transform = `translate(${drag.px + 14}px, ${drag.py + 18}px) scale(.62)`;
   const next = dropTarget(drag.px, drag.py), hint = $('#dragHint');
+  const self = document.elementFromPoint(drag.px, drag.py)?.closest('.fam .person') === drag.card;
   document.body.classList.add('drag-on');
   // 놓을 곳이 바뀔 때만 표시를 다시 그린다 (매번 그리면 깜빡임 애니메이션이 처음부터 다시 시작됨)
-  if (!('t' in drag) || next?.el !== drag.t?.el || next?.kind !== drag.t?.kind) {
+  if (!('t' in drag) || next?.el !== drag.t?.el || next?.kind !== drag.t?.kind || self !== drag.self) {
+    drag.self = self;
     drag.t?.el.removeAttribute('data-zone');
     if (next) { next.el.dataset.zone = next.kind; navigator.vibrate?.(12); } // 안드로이드는 살짝 진동
     drag.t = next;
     const ARROW = { parent: '↑', child: '↓', before: '←', after: '→', spouse: '♥', fill: '↻' };
     const me = byId(drag.id), t = next && byId(next.id);
-    const text = !next ? (me.parentId || me.spouseId ? '여기 놓으면 연결 끊기' : '가족 카드 위에 놓아 주세요')
+    const text = self ? '다른 카드로 옮겨 주세요' : !next ? (me.parentId || me.spouseId ? '여기 놓으면 연결 끊기' : '가족 카드 위에 놓아 주세요')
       : next.kind === 'fill' ? '부모님 자리에 넣기'
       : askSide(next.kind, me, t) ? `${roleTerm(next.kind, me, t)} 또는 ${ro(ROLE.spouse[me.gender || ''])} 연결`
       : `${t.name}님의 ${ro(roleTerm(next.kind, me, t))} 연결`;
     hint.innerHTML = `${next ? `<i>${ARROW[next.kind]}</i>` : ''}<span>${h(text)}</span>`;
-    hint.className = next ? 'on' : me.parentId || me.spouseId ? 'cut' : '';
+    hint.className = next ? 'on' : !self && (me.parentId || me.spouseId) ? 'cut' : '';
   }
   hint.style.transform = `translate(${drag.px}px, ${drag.py - 52}px) translateX(-50%)`;
   hint.hidden = false;
@@ -367,11 +389,12 @@ function autoScroll() {
 function endDrag(cancelled) {
   if (!drag) return;
   const d = drag; drag = null;
-  if (!d.ghost) return;
+  clearTimeout(d.timer); d.card.classList.remove('pressing');
+  if (!d.ghost) return; // 들리기 전에 뗐으면 그냥 누른 것(수정 창 열기)
   d.ghost.remove(); d.card.classList.remove('dragging'); d.t?.el.removeAttribute('data-zone');
   $('#dragHint').hidden = true; document.body.classList.remove('drag-on');
   suppressClick = true; setTimeout(() => suppressClick = false);
-  if (cancelled) return;
+  if (cancelled || d.self) return; // 들었던 카드 위에 다시 놓으면 아무것도 안 바뀜
   const before = JSON.stringify(data), me = byId(d.id), t = d.t && byId(d.t.id);
   if (d.t) finishLink(d.t.kind, me, t, before);
   else if (me.parentId || me.spouseId) {

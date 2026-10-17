@@ -120,6 +120,10 @@
   .couple > .person:last-child:not(:first-child) { border-radius:0 16px 16px 0; }
   .heart { pointer-events:none; width:1px; background:var(--line); margin:14px 0; display:flex; align-items:center; justify-content:center; z-index:1; }
   .heart::before { content:""; flex:none; width:20px; height:20px; border-radius:50%; background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f0548b' d='M12 20s-7-4.4-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.6 12 20 12 20z'/%3E%3C/svg%3E") center/14px no-repeat; box-shadow:0 0 0 1px var(--line); }
+  /* 꾹 누르는 1초 동안: 파란 테두리가 차오르며 살짝 눌림 → 다 차면 카드가 들림 */
+  .person { -webkit-touch-callout:none; }
+  .person.pressing { animation:press 1s linear forwards; }
+  @keyframes press { from { box-shadow:0 0 0 0 var(--accent), var(--shadow); transform:scale(1); } to { box-shadow:0 0 0 4px var(--accent), 0 0 0 10px var(--accent-soft), var(--shadow); transform:scale(.95); } }
   .person.dragging { opacity:.25; filter:grayscale(1); }
   .person.ghost { position:fixed; left:0; top:0; z-index:50; pointer-events:none; opacity:.9; transform-origin:0 0; box-shadow:0 0 0 2px var(--accent), var(--shadow-lg); border-radius:16px !important; }
   /* 끄는 동안: 나머지 카드는 흐리게, 놓을 카드는 크게·밝게 */
