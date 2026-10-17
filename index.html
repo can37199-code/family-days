@@ -99,8 +99,14 @@
     <h2 id="formTitle">가족 추가</h2>
     <label for="f-name">이름</label>
     <input id="f-name" name="name" required placeholder="예: 김영희">
+    <div class="row">
+      <div><label for="f-gender">성별</label>
+        <select id="f-gender" name="gender"><option value="">선택 안 함</option><option value="M">남자</option><option value="F">여자</option></select></div>
+      <div><label class="check" style="margin-top:30px"><input type="checkbox" name="me"> 이 사람이 나</label></div>
+    </div>
     <label for="f-rel">관계 (나와의)</label>
-    <input id="f-rel" name="rel" placeholder="예: 어머니, 시아버지">
+    <input id="f-rel" name="rel" placeholder="가족도에서 끌어 붙이면 자동으로 채워져요">
+    <div class="sub" style="font-size:12px;margin-top:4px">직접 고쳐 쓰면 그 호칭을 유지하고, 비우면 다시 자동으로 채워요.</div>
     <fieldset data-ev="생신">
       <legend>생신</legend>
       <div class="row">

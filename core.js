@@ -119,6 +119,90 @@ export function detach(people, id) {
   find(people, id).parentId = null;
 }
 
+// ── '나'를 기준으로 한 관계 호칭 ──
+// 성별: 직접 고른 값 → 없으면 배우자의 반대 성별 (예: 남편이 남자면 나는 여자)
+export function genderOf(people, p) {
+  if (p?.gender) return p.gender;
+  const s = find(people, p?.spouseId)?.gender;
+  return s === 'M' ? 'F' : s === 'F' ? 'M' : '';
+}
+
+// 예전 데이터처럼 성별이 없고 관계 메모만 있으면 메모로 성별을 짐작
+// "시누이 남편"처럼 여러 말이 섞이면 마지막에 나오는 말이 그 사람이다.
+const MALE = /아버지|남편|아들|할아버지|삼촌|형|오빠|남동생|장인|사위|처남|손자|도련님|아주버니|매형|매제|형부|제부/g;
+const FEMALE = /어머니|아내|딸|할머니|고모|이모|누나|언니|여동생|장모|며느리|시누이|손녀|올케|형수|제수|처형|처제/g;
+const lastEnd = (re, s) => Math.max(-1, ...[...s.matchAll(re)].map(m => m.index + m[0].length));
+export function guessGender(rel = '') {
+  const m = lastEnd(MALE, rel || ''), f = lastEnd(FEMALE, rel || '');
+  return m < 0 && f < 0 ? '' : f >= m ? 'F' : 'M';
+}
+
+// '나'에서 id까지 가장 짧은 경로. 단계: S 배우자, P 부모(부부 둘 다), C 자녀(부부 공동)
+function kinPath(people, meId, id) {
+  const prev = new Map([[meId, null]]), queue = [meId];
+  while (queue.length) {
+    const x = queue.shift();
+    if (x === id) break;
+    const p = find(people, x);
+    const next = [
+      ['S', p.spouseId],
+      ...unit(people, p.parentId).map(y => ['P', y]),
+      ...people.filter(c => c.parentId && unit(people, x).includes(c.parentId)).map(c => ['C', c.id]),
+    ];
+    for (const [step, y] of next) if (y && find(people, y) && !prev.has(y)) { prev.set(y, [x, step]); queue.push(y); }
+  }
+  if (!prev.has(id)) return null;
+  const path = [];
+  for (let y = id; prev.get(y); y = prev.get(y)[0]) path.unshift({ step: prev.get(y)[1], p: find(people, y) });
+  return path;
+}
+
+// 경로 한 덩어리를 부르는 말. 모르면 null
+function directTerm(people, path, viewer) {
+  const k = path.map(x => x.step).join(''), g = genderOf(people, path.at(-1).p), g1 = genderOf(people, path[0].p);
+  const me = genderOf(people, viewer);
+  const by = (m, f, n) => g === 'M' ? m : g === 'F' ? f : n;
+  switch (k) {
+    case 'S': return by('남편', '아내', '배우자');
+    case 'P': return by('아버지', '어머니', '부모');
+    case 'C': return by('아들', '딸', '자녀');
+    case 'PP': return g1 ? (g1 === 'F' ? '외' : '') + by('할아버지', '할머니', '조부모') : by('할아버지', '할머니', '조부모');
+    case 'CC': return by('손자', '손녀', '손주');
+    case 'CS': return by('사위', '며느리', null);
+    case 'PC': return by('형제', '자매', '형제자매');
+    case 'PCC': return '조카';
+    case 'PPCC': return '사촌';
+    case 'PPC': return g1 === 'M' ? by('삼촌', '고모', null) : g1 === 'F' ? by('외삼촌', '이모', null) : null;
+    case 'SP': return me === 'F' ? by('시아버지', '시어머니', '시부모') : me === 'M' ? by('장인', '장모', '처부모') : null;
+    case 'SPC': return me === 'F' && g === 'F' ? '시누이' : me === 'M' && g === 'M' ? '처남' : null;
+  }
+  return null;
+}
+
+// 아는 말이 안 되면 앞부분을 최대한 길게 잘라 "시누이의 남편"처럼 잇는다
+function termOf(people, path, viewer) {
+  const t = directTerm(people, path, viewer);
+  if (t) return t;
+  for (let i = path.length - 1; i >= 1; i--) {
+    const head = directTerm(people, path.slice(0, i), viewer);
+    if (head) return `${head}의 ${termOf(people, path.slice(i), path[i - 1].p)}`;
+  }
+}
+
+export function kinship(people, meId, id) {
+  if (!find(people, meId)) return null;
+  if (id === meId) return '나';
+  const path = kinPath(people, meId, id);
+  return path ? termOf(people, path, find(people, meId)) : null;
+}
+
+// 자동 호칭인 사람(relAuto !== false)의 관계 메모를 다시 계산. 이어지지 않으면 비운다.
+// '나'가 없으면 기준이 없으니 기존 메모를 그대로 둔다.
+export function relabel(data) {
+  if (!find(data.people, data.meId)) return;
+  for (const p of data.people) if (p.relAuto !== false) p.rel = kinship(data.people, data.meId, p.id) || '';
+}
+
 // 공유 링크: 데이터를 UTF-8 → base64url 로 주소 # 뒤에 담는다.
 // shortcut: 링크를 보낸 시점의 사본이라 실시간 동기화가 안 됨. 가족이 함께 고치는 일이 잦아지면 서버(Supabase)로 옮긴다.
 export function encodeShare(data) {

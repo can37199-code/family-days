@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -8,6 +8,13 @@ const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOff
 let data;
 try { data = JSON.parse(localStorage.getItem(KEY)) || { people: [] }; } catch { data = { people: [] }; }
 const save = () => localStorage.setItem(KEY, JSON.stringify(data));
+// 예전 데이터: '나'와 성별을 관계 메모에서 찾아 채운다
+function migrate(d) {
+  d.meId ??= d.people.find(p => p.rel === '나')?.id ?? null;
+  for (const p of d.people) p.gender ??= guessGender(p.rel);
+  return d;
+}
+migrate(data);
 const byId = id => data.people.find(p => p.id === id);
 
 // 공유 링크로 열었을 때
@@ -17,7 +24,7 @@ if (location.hash.startsWith('#d=')) {
     const msg = data.people.length
       ? `가족 ${incoming.people.length}명의 기념일을 받았습니다.\n지금 이 폰에 있는 ${data.people.length}명은 받은 내용으로 바뀝니다. 가져올까요?`
       : `가족 ${incoming.people.length}명의 기념일을 가져올까요?`;
-    if (confirm(msg)) { data = incoming; save(); }
+    if (confirm(msg)) { data = migrate(incoming); save(); }
   } catch { alert('공유 링크가 손상되어 열 수 없습니다.'); }
   history.replaceState(null, '', location.pathname);
 }
@@ -179,7 +186,7 @@ function endDrag(cancelled) {
   d.ghost.remove(); d.card.classList.remove('dragging'); d.t?.el.removeAttribute('data-drop');
   suppressClick = true; setTimeout(() => suppressClick = false);
   if (cancelled) return;
-  const before = JSON.stringify(data.people), me = byId(d.id);
+  const before = JSON.stringify(data), me = byId(d.id);
   if (d.t) {
     const err = link(data.people, d.id, d.t.id, d.t.kind);
     if (err) return alert(err);
@@ -195,11 +202,11 @@ addEventListener('pointercancel', () => endDrag(true));
 // 바뀐 관계 저장 + 되돌리기 안내
 let toastTimer;
 function commit(msg, before) {
-  save(); render();
+  relabel(data); save(); render();
   const t = $('#toast');
   t.innerHTML = `<span>${h(msg)}</span><button type="button">되돌리기</button>`;
   t.hidden = false;
-  t.querySelector('button').onclick = () => { data.people = JSON.parse(before); save(); render(); t.hidden = true; };
+  t.querySelector('button').onclick = () => { data = JSON.parse(before); save(); render(); t.hidden = true; };
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 5000);
 }
 $('#view').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.id) openForm(e.target.dataset.id); });
@@ -217,6 +224,9 @@ function openForm(id) {
   $('#del').hidden = !id;
   form.name.value = p.name || '';
   form.rel.value = p.rel || '';
+  form.rel.dataset.orig = form.rel.value;
+  form.gender.value = p.gender || '';
+  form.me.checked = id ? data.meId === id : !data.meId; // 첫 사람은 기본으로 '나'
   form.querySelectorAll('fieldset').forEach(fs => {
     const e = p.events.find(x => x.type === fs.dataset.ev) || {};
     fs.querySelector('[name=cal]').value = e.cal || '';
@@ -242,10 +252,15 @@ form.onsubmit = e => {
     events.push({ type: fs.dataset.ev, cal, m, d, leap: cal === 'lunar' && fs.querySelector('[name=leap]').checked, eve: !!fs.querySelector('[name=eve]')?.checked });
   }
   // 관계(부모·배우자)는 가족도에서 드래그로만 정한다
-  const before = JSON.stringify(data.people);
+  const before = JSON.stringify(data);
   const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null };
-  Object.assign(p, { name: form.name.value.trim(), rel: form.rel.value.trim(), events });
-  if (editing) return save(), render();
+  const rel = form.rel.value.trim();
+  // 호칭을 직접 고쳐 쓰면 고정, 비우면 다시 자동
+  if (rel !== form.rel.dataset.orig) p.relAuto = !rel;
+  Object.assign(p, { name: form.name.value.trim(), rel, gender: form.gender.value, events });
+  if (form.me.checked) data.meId = p.id;
+  else if (data.meId === p.id) data.meId = null;
+  if (editing) return relabel(data), save(), render();
   data.people.push(p);
   commit(`${p.name}님을 추가했어요. 카드를 끌어 가족에게 붙여 주세요.`, before);
   document.querySelector(`.fam .person[data-id="${p.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -256,7 +271,8 @@ $('#del').onclick = () => {
   if (!confirm(`${p.name} 님을 삭제할까요? 연결된 가족 관계도 함께 끊어집니다.`)) return;
   data.people = data.people.filter(x => x.id !== p.id);
   data.people.forEach(x => { if (x.parentId === p.id) x.parentId = null; if (x.spouseId === p.id) x.spouseId = null; });
-  save(); dlg.close(); render();
+  if (data.meId === p.id) data.meId = null;
+  relabel(data); save(); dlg.close(); render();
 };
 
 render();
