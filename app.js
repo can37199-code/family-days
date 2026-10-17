@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, linkSibling, prunePlaceholders, siblingTerm, genderOf } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, linkSibling, prunePlaceholders, siblingTerm, genderOf, isSibling } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -289,7 +289,10 @@ function updateDrag() {
   const hint = $('#dragHint');
   if (drag.t) {
     drag.t.el.dataset.zone = drag.t.kind;
-    hint.textContent = `${ro(roleTerm(drag.t.kind, byId(drag.id), byId(drag.t.id)))} 연결`;
+    const d = byId(drag.id), t = byId(drag.t.id);
+    hint.textContent = askSide(drag.t.kind, d, t)
+      ? `${roleTerm(drag.t.kind, d, t)} 또는 ${ro(ROLE.spouse[d.gender || ''])} 연결`
+      : `${ro(roleTerm(drag.t.kind, d, t))} 연결`;
   } else hint.textContent = byId(drag.id).parentId || byId(drag.id).spouseId ? '여기 놓으면 연결 끊기' : '가족 카드 위에 놓아 주세요';
   hint.style.transform = `translate(${drag.px}px, ${drag.py - 52}px) translateX(-50%)`;
   hint.hidden = false;
@@ -316,15 +319,39 @@ function endDrag(cancelled) {
   suppressClick = true; setTimeout(() => suppressClick = false);
   if (cancelled) return;
   const before = JSON.stringify(data), me = byId(d.id), t = d.t && byId(d.t.id);
-  if (d.t) {
-    const sib = d.t.kind === 'before' || d.t.kind === 'after';
-    const err = sib ? linkSibling(data.people, d.id, d.t.id, d.t.kind === 'after') : link(data.people, d.id, d.t.id, d.t.kind);
-    if (err) return alert(err);
-    commit(`${me.name}님을 ${t.name}님의 ${ro(roleTerm(d.t.kind, me, t))} 연결했어요`, before);
-  } else if (me.parentId || me.spouseId) {
+  if (d.t) finishLink(d.t.kind, me, t, before);
+  else if (me.parentId || me.spouseId) {
     detach(data.people, d.id);
     commit(`${me.name}님의 연결을 끊었어요`, before);
   }
+}
+
+// 카드 옆(양끝)에 놓으면 형제인지 배우자인지 헷갈리므로 물어본다. 이미 형제면 순서만 바꾼다.
+const askSide = (kind, d, t) => (kind === 'before' || kind === 'after') && !isSibling(data.people, d.id, t.id);
+
+async function finishLink(kind, me, t, before) {
+  if (askSide(kind, me, t)) {
+    const choice = await choose(`${me.name}님을 어떻게 연결할까요?`, [
+      { value: kind, label: `${t.name}님의 ${roleTerm(kind, me, t)}`, sub: '형제·자매로 연결' },
+      { value: 'spouse', label: `${t.name}님의 ${ROLE.spouse[me.gender || '']}`, sub: '부부로 연결' },
+    ]);
+    if (!choice) return;
+    kind = choice;
+  }
+  const sib = kind === 'before' || kind === 'after';
+  const err = sib ? linkSibling(data.people, me.id, t.id, kind === 'after') : link(data.people, me.id, t.id, kind);
+  if (err) return alert(err);
+  commit(`${me.name}님을 ${t.name}님의 ${ro(roleTerm(kind, me, t))} 연결했어요`, before);
+}
+
+// 아래에서 올라오는 선택창. 고른 value를 돌려주고, 취소하면 ''
+function choose(title, options) {
+  const d = $('#pick');
+  $('#pickTitle').textContent = title;
+  $('#pickOpts').innerHTML = options.map(o => `<button class="opt" value="${o.value}"><b>${h(o.label)}</b><small>${h(o.sub)}</small></button>`).join('');
+  d.returnValue = '';
+  d.showModal();
+  return new Promise(res => d.addEventListener('close', () => res(d.returnValue), { once: true }));
 }
 addEventListener('pointerup', () => endDrag(false));
 addEventListener('pointercancel', () => endDrag(true));

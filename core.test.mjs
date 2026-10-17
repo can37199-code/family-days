@@ -121,4 +121,47 @@ assert.ok(linkSibling(sb, 'me', ph.id, false));                 // 부모와는 
 for (const id of ['me', 'h', 's']) detach(sb, id);
 prunePlaceholders(sb);
 assert.equal(sb.some(p => p.placeholder), false);               // 자녀가 없어지면 빈 카드 정리
+// 호칭 전체 점검: 친가·외가·처가·형제와 그 배우자 (배열 순서 = 형제 순서, 앞이 손위)
+const F = [];
+const add = (id, gender, parentId = null, spouseId = null) => F.push({ id, gender, parentId, spouseId, events: [] });
+const wed = (a, b) => { F.find(p => p.id === a).spouseId = b; F.find(p => p.id === b).spouseId = a; };
+add('ggf', 'M');                                    // 친할아버지
+add('큰아버지', 'M', 'ggf'); add('dad', 'M', 'ggf'); add('작은아버지', 'M', 'ggf'); add('고모', 'F', 'ggf');
+add('큰어머니', 'F'); wed('큰아버지', '큰어머니'); add('고모부', 'M'); wed('고모', '고모부');
+add('사촌', 'F', '큰아버지');
+add('mgf', 'M');                                    // 외할아버지
+add('외삼촌', 'M', 'mgf'); add('mom', 'F', 'mgf'); add('이모', 'F', 'mgf');
+add('외숙모', 'F'); wed('외삼촌', '외숙모'); add('이모부', 'M'); wed('이모', '이모부');
+add('외사촌', 'M', '이모');
+wed('dad', 'mom');
+add('형', 'M', 'dad'); add('누나', 'F', 'mom'); add('me', 'M', 'dad'); add('남동생', 'M', 'dad'); add('여동생', 'F', 'mom');
+add('형수', 'F'); wed('형', '형수'); add('매형', 'M'); wed('누나', '매형');
+add('제수', 'F'); wed('남동생', '제수'); add('매제', 'M'); wed('여동생', '매제');
+add('조카', 'M', '형');
+add('wf', 'M');                                     // 장인
+add('처형', 'F', 'wf'); add('wife', 'F', 'wf'); add('처제', 'F', 'wf'); add('처남', 'M', 'wf');
+add('동서', 'M'); wed('처형', '동서'); add('처남댁', 'F'); wed('처남', '처남댁');
+wed('me', 'wife');
+const names = ['큰아버지', '작은아버지', '고모', '큰어머니', '고모부', '사촌', '외삼촌', '이모', '외숙모', '이모부', '외사촌',
+  '형', '누나', '남동생', '여동생', '형수', '매형', '제수', '매제', '조카', '처형', '처제', '처남', '동서', '처남댁'];
+for (const n of names) assert.equal(kinship(F, 'me', n), n, `나→${n}`);
+assert.equal(kinship(F, 'me', 'ggf'), '할아버지');
+assert.equal(kinship(F, 'me', 'mgf'), '외할아버지');
+assert.equal(kinship(F, 'me', 'wf'), '장인');
+// 아내가 볼 때
+const W = id => kinship(F, 'wife', id);
+assert.equal(W('me'), '남편');
+assert.equal(W('dad'), '시아버지');
+assert.equal(W('형'), '시아주버니');
+assert.equal(W('남동생'), '시동생');
+assert.equal(W('누나'), '시누이');
+assert.equal(W('형수'), '동서');
+assert.equal(W('ggf'), '시할아버지');
+assert.equal(W('처형'), '언니');
+// 누나·여동생이 볼 때
+assert.equal(kinship(F, '누나', '형'), '오빠');
+assert.equal(kinship(F, '누나', '형수'), '올케');
+assert.equal(kinship(F, '누나', '매제'), '제부');
+assert.equal(kinship(F, '여동생', '매형'), '형부');
+assert.equal(kinship(F, '여동생', 'me'), '오빠');
 console.log('모든 검사 통과');

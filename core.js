@@ -203,23 +203,61 @@ export function siblingTerm(g, me, older) {
   return '손위 형제';
 }
 
+// 경로(S 배우자, P 부모, C 자녀)별 호칭. 손위·손아래는 형제 순서(배열 순서)로 가른다.
 function directTerm(people, path, viewer) {
-  const k = path.map(x => x.step).join(''), g = genderOf(people, path.at(-1).p), g1 = genderOf(people, path[0].p);
-  const me = genderOf(people, viewer);
-  const by = (m, f, n) => g === 'M' ? m : g === 'F' ? f : n;
+  const k = path.map(x => x.step).join(''), t = path.at(-1).p, G = p => genderOf(people, p);
+  const g = G(t), g1 = G(path[0].p), me = G(viewer);
+  const older = (a, b) => people.indexOf(a) < people.indexOf(b);
+  const by = (m, f, n = null) => g === 'M' ? m : g === 'F' ? f : n;
   switch (k) {
+    // 나·배우자·부모·자녀
     case 'S': return by('남편', '아내', '배우자');
     case 'P': return by('아버지', '어머니', '부모');
     case 'C': return by('아들', '딸', '자녀');
-    case 'PP': return g1 ? (g1 === 'F' ? '외' : '') + by('할아버지', '할머니', '조부모') : by('할아버지', '할머니', '조부모');
+    case 'PP': return (g1 === 'F' ? '외' : '') + by('할아버지', '할머니', '조부모');
+    case 'PPP': return by('증조할아버지', '증조할머니', '증조부모');
     case 'CC': return by('손자', '손녀', '손주');
-    case 'CS': return by('사위', '며느리', null);
-    case 'PC': return siblingTerm(g, me, people.indexOf(path.at(-1).p) < people.indexOf(viewer));
-    case 'PCC': return '조카';
-    case 'PPCC': return '사촌';
-    case 'PPC': return g1 === 'M' ? by('삼촌', '고모', null) : g1 === 'F' ? by('외삼촌', '이모', null) : null;
+    case 'CCC': return by('증손자', '증손녀', '증손주');
+    case 'CS': return by('사위', '며느리');
+    // 형제와 그 배우자
+    case 'PC': return siblingTerm(g, me, older(t, viewer));
+    case 'PCS': { // 형수·제수·매형·매제 / 올케·형부·제부
+      const sib = path[1].p, up = older(sib, viewer), sg = G(sib);
+      if (me === 'M') return sg === 'M' ? (up ? '형수' : '제수') : sg === 'F' ? (up ? '매형' : '매제') : null;
+      if (me === 'F') return sg === 'M' ? '올케' : sg === 'F' ? (up ? '형부' : '제부') : null;
+      return null;
+    }
+    case 'PCC': case 'SPCC': return '조카';
+    // 배우자 쪽
     case 'SP': return me === 'F' ? by('시아버지', '시어머니', '시부모') : me === 'M' ? by('장인', '장모', '처부모') : null;
-    case 'SPC': return me === 'F' && g === 'F' ? '시누이' : me === 'M' && g === 'M' ? '처남' : null;
+    case 'SPP': return me === 'F' ? by('시할아버지', '시할머니') : me === 'M' ? by('처조부', '처조모') : null;
+    case 'SPC': { // 시아주버니·시동생·시누이 / 처남·처형·처제
+      const up = older(t, path[0].p);
+      if (me === 'F') return g === 'M' ? (up ? '시아주버니' : '시동생') : g === 'F' ? '시누이' : null;
+      if (me === 'M') return g === 'M' ? '처남' : g === 'F' ? (up ? '처형' : '처제') : null;
+      return null;
+    }
+    case 'SPCS': { // 동서·처남댁
+      const sg = G(path[2].p);
+      if (me === 'F' && sg === 'M') return '동서';
+      if (me === 'M' && sg === 'F') return '동서';
+      if (me === 'M' && sg === 'M') return '처남댁';
+      return null;
+    }
+    // 부모의 형제와 그 배우자, 사촌
+    case 'PPC': { // 큰아버지·작은아버지·고모 / 외삼촌·이모
+      const up = older(t, path[0].p);
+      if (g1 === 'M') return by(up ? '큰아버지' : '작은아버지', '고모');
+      if (g1 === 'F') return by('외삼촌', '이모');
+      return null;
+    }
+    case 'PPCS': { // 큰어머니·작은어머니·고모부 / 외숙모·이모부
+      const uncle = path[2].p, ug = G(uncle), up = older(uncle, path[0].p);
+      if (g1 === 'M') return ug === 'M' ? (up ? '큰어머니' : '작은어머니') : ug === 'F' ? '고모부' : null;
+      if (g1 === 'F') return ug === 'M' ? '외숙모' : ug === 'F' ? '이모부' : null;
+      return null;
+    }
+    case 'PPCC': return g1 === 'F' ? '외사촌' : '사촌';
   }
   return null;
 }
