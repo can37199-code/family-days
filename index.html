@@ -167,13 +167,17 @@
   .seg svg { width:18px; height:18px; }
   .seg input[value=M]:checked + span svg { color:var(--male); }
   .seg input[value=F]:checked + span svg { color:var(--female); }
-  .switch { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:var(--bg-2); border-radius:14px; font-weight:600; font-size:15px; cursor:pointer; }
-  .switch input { position:absolute; opacity:0; width:1px; height:1px; }
-  .switch i { flex:none; width:44px; height:26px; border-radius:13px; background:var(--line-2); position:relative; transition:background .2s; }
-  .switch i::after { content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:transform .2s; }
+  /* 토글: 줄 전체를 눌러도 켜고 끔. 트랙 50×30, 손잡이 26 */
+  .f > label.switch { position:relative; display:flex; align-items:center; gap:12px; min-height:56px; margin:0; padding:0 14px 0 16px; background:var(--bg-2); border-radius:14px; font-weight:600; font-size:16px; color:var(--ink); cursor:pointer; user-select:none; }
+  .switch span { flex:1; }
+  .switch input { position:absolute; opacity:0; width:1px; height:1px; margin:0; padding:0; pointer-events:none; }
+  .switch i { display:block; flex:none; width:50px; height:30px; border-radius:15px; background:var(--line-2); position:relative; transition:background-color .2s ease; }
+  .switch i::after { content:""; position:absolute; top:2px; left:2px; width:26px; height:26px; border-radius:50%; background:#fff; box-shadow:0 2px 4px rgba(0,23,51,.2); transition:transform .22s cubic-bezier(.2,.8,.2,1); }
   .switch input:checked + i { background:var(--accent); }
-  .switch input:checked + i::after { transform:translateX(18px); }
+  .switch input:checked + i::after { transform:translateX(20px); }
   .switch input:focus-visible + i { outline:2px solid var(--accent); outline-offset:2px; }
+  .switch:active i::after { width:30px; } /* 누를 때 손잡이가 살짝 늘어남 */
+  .switch:active input:checked + i::after { transform:translateX(16px); }
   fieldset { border:0; margin:0 0 16px; padding:0; }
   legend { font-size:13px; font-weight:600; color:var(--ink-2); margin-bottom:6px; padding:0; }
   .grid3 { display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:8px; }
@@ -225,16 +229,14 @@
         <label><input type="radio" name="gender" value="F"><span><svg><use href="#i-F"/></svg>여자</span></label>
       </div>
     </div>
-    <div class="f"><label class="switch">이 사람이 나예요<input type="checkbox" name="me"><i></i></label>
+    <div class="f"><label class="switch"><span>이 사람이 나예요</span><input type="checkbox" name="me" role="switch"><i aria-hidden="true"></i></label>
       <div class="hint">관계도의 호칭(시어머니, 외할아버지 등)은 '나'를 기준으로 자동으로 정해져요.</div></div>
-    <div class="f"><label for="f-rel">나와의 관계</label><input id="f-rel" name="rel" placeholder="관계도에서 연결하면 자동으로 채워져요" autocomplete="off">
-      <div class="hint">직접 고쳐 쓰면 그 호칭을 유지하고, 비우면 다시 자동으로 채워요.</div></div>
-    <fieldset data-ev="생신">
-      <legend>생신</legend>
+    <fieldset data-ev="생일">
+      <legend>생일</legend>
       <div class="grid3">
-        <select name="cal" aria-label="생신 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
-        <input name="m" type="number" inputmode="numeric" min="1" max="12" placeholder="월" aria-label="생신 월">
-        <input name="d" type="number" inputmode="numeric" min="1" max="31" placeholder="일" aria-label="생신 일">
+        <select name="cal" aria-label="생일 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
+        <input name="m" type="number" inputmode="numeric" min="1" max="12" placeholder="월" aria-label="생일 월">
+        <input name="d" type="number" inputmode="numeric" min="1" max="31" placeholder="일" aria-label="생일 일">
       </div>
       <div class="checks"><label class="check"><input type="checkbox" name="leap"> 윤달</label></div>
     </fieldset>

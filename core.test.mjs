@@ -17,11 +17,11 @@ assert.equal(nextDate({ cal: 'lunar', m: 12, d: 20 }, '2026-12-01'), lunarToSola
 assert.equal(occurrence({ cal: 'lunar', m: 8, d: 15, eve: true }, 2026), '2026-09-24');
 assert.equal(occurrence({ cal: 'solar', m: 2, d: 29 }, 2027), '2027-02-28');
 
-const people = [{ id: 'a', name: '아버지', events: [{ type: '생신', ...chuseok }] }];
+const people = [{ id: 'a', name: '아버지', events: [{ type: '생일', ...chuseok }] }];
 const ics = buildIcs(people, '2026-10-17', 20);
 assert.equal(ics.match(/BEGIN:VEVENT/g).length, 19); // 2026 추석은 이미 지남 → 2027~2045
 assert.ok(ics.includes(`DTSTART;VALUE=DATE:${lunarToSolar(2027, 8, 15, false).replace(/-/g, '')}`));
-assert.ok(ics.includes('SUMMARY:아버지 생신'));
+assert.ok(ics.includes('SUMMARY:아버지 생일'));
 
 const data = { people: [{ id: 'x', name: '할머니 👵', events: [] }] };
 assert.deepEqual(decodeShare(encodeShare(data)), data);

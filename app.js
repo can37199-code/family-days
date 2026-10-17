@@ -11,10 +11,16 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(data));
 // 예전 데이터: '나'와 성별을 관계 메모에서 찾아 채운다
 function migrate(d) {
   d.meId ??= d.people.find(p => p.rel === '나')?.id ?? null;
-  for (const p of d.people) p.gender ??= guessGender(p.rel);
+  for (const p of d.people) {
+    p.gender ??= guessGender(p.rel);
+    delete p.relAuto; // 호칭 직접 입력란이 없어져서 모두 자동
+    for (const e of p.events || []) if (e.type === '생신') e.type = '생일';
+  }
+  relabel(d);
   return d;
 }
 migrate(data);
+save();
 const byId = id => data.people.find(p => p.id === id);
 
 // 공유 링크로 열었을 때
@@ -30,7 +36,7 @@ if (location.hash.startsWith('#d=')) {
 }
 
 const TITLES = {
-  upcoming: ['다가오는 날', '양가 생신·기일을 음력까지 챙겨 드려요'],
+  upcoming: ['다가오는 날', '양가 생일·기일을 음력까지 챙겨 드려요'],
   tree: ['관계도', '카드를 옆에 놓으면 배우자, 아래는 아들·딸, 위는 부모로 연결돼요. 형제끼리는 양 끝에 놓아 순서를 바꿔요'],
   share: ['알림·공유', ''],
 };
@@ -107,7 +113,7 @@ function tree() {
 function share() {
   const row = (id, icon, title, desc) => `<button class="menu" id="${id}"><span class="ic"><svg class="i"><use href="#i-${icon}"/></svg></span>
     <span class="main"><b>${title}</b><small>${desc}</small></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
-  return row('ics', 'bell', '폰 달력에 알림 넣기', '20년치 생신·기일을 달력 파일로 받아요')
+  return row('ics', 'bell', '폰 달력에 알림 넣기', '20년치 생일·기일을 달력 파일로 받아요')
     + row('link', 'share', '가족에게 공유하기', '카톡으로 링크를 보내면 같은 관계도를 받아요')
     + `<div class="note"><h3>알아 두세요</h3><ul>
       <li>음력 날짜도 해마다 맞는 양력 날짜로 달력에 들어가요.</li>
@@ -213,7 +219,7 @@ function render() {
     $('#link').onclick = async () => {
       if (!data.people.length) return alert('먼저 관계도에서 가족을 추가해 주세요.');
       const url = `${location.origin}${location.pathname}#d=${encodeShare(data)}`;
-      if (navigator.share) { try { await navigator.share({ title: '우리집 기념일', text: '우리 가족 생신·기일 달력이에요', url }); } catch {} }
+      if (navigator.share) { try { await navigator.share({ title: '우리집 기념일', text: '우리 가족 생일·기일 달력이에요', url }); } catch {} }
       else { await navigator.clipboard.writeText(url); alert('링크를 복사했어요. 카톡에 붙여넣어 보내 주세요.'); }
     };
   }
@@ -343,8 +349,6 @@ function openForm(id) {
   $('#del').hidden = !id;
   form.name.value = p.name || '';
   form.querySelectorAll('[name=gender]').forEach(r => r.checked = r.value === p.gender);
-  form.rel.value = p.rel || '';
-  form.rel.dataset.orig = form.rel.value;
   form.me.checked = id ? data.meId === id : !data.meId; // 첫 사람은 기본으로 '나'
   form.querySelectorAll('fieldset').forEach(fs => {
     const e = p.events.find(x => x.type === fs.dataset.ev) || {};
@@ -370,13 +374,10 @@ form.onsubmit = e => {
     }
     events.push({ type: fs.dataset.ev, cal, m, d, leap: cal === 'lunar' && fs.querySelector('[name=leap]').checked, eve: !!fs.querySelector('[name=eve]')?.checked });
   }
-  // 관계(부모·배우자)는 관계도에서 드래그로만 정한다
+  // 관계(부모·배우자)는 관계도에서 드래그로만 정하고, 호칭은 relabel이 자동으로 채운다
   const before = JSON.stringify(data);
-  const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null };
-  const rel = form.rel.value.trim();
-  // 호칭을 직접 고쳐 쓰면 고정, 비우면 다시 자동
-  if (rel !== form.rel.dataset.orig) p.relAuto = !rel;
-  Object.assign(p, { name: form.name.value.trim(), rel, gender: form.gender.value, events });
+  const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null, rel: '' };
+  Object.assign(p, { name: form.name.value.trim(), gender: form.gender.value, events });
   if (form.me.checked) data.meId = p.id;
   else if (data.meId === p.id) data.meId = null;
   if (editing) return relabel(data), save(), render();
