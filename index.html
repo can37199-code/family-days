@@ -199,7 +199,11 @@
   .switch:active input:checked + i::after { transform:translateX(16px); }
   fieldset { border:0; margin:0 0 16px; padding:0; }
   legend { font-size:13px; font-weight:600; color:var(--ink-2); margin-bottom:6px; padding:0; }
-  .grid3 { display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:8px; }
+  .grid3 { display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:8px; }
+  /* 양력·음력 버튼: 입력칸과 같은 높이 52 */
+  .seg.cal span { height:44px; font-size:15px; }
+  /* 윤달은 음력일 때만 */
+  fieldset:has(input[data-cal][value=solar]:checked) .leap { display:none; }
   .checks { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:8px; }
   .check { display:flex; gap:6px; align-items:center; font-size:14px; color:var(--ink-2); cursor:pointer; }
   .check input { width:18px; height:18px; accent-color:var(--accent); appearance:auto; -webkit-appearance:checkbox; }
@@ -267,20 +271,20 @@
     <fieldset data-ev="생일">
       <legend>생일</legend>
       <div class="grid3">
-        <select name="cal" aria-label="생일 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
+        <div class="seg cal" role="radiogroup" aria-label="생일 달력"><label><input type="radio" name="cal_birth" value="solar" data-cal checked><span>양력</span></label><label><input type="radio" name="cal_birth" value="lunar" data-cal><span>음력</span></label></div>
         <input name="m" type="number" inputmode="numeric" min="1" max="12" placeholder="월" aria-label="생일 월">
         <input name="d" type="number" inputmode="numeric" min="1" max="31" placeholder="일" aria-label="생일 일">
       </div>
-      <div class="checks"><label class="check"><input type="checkbox" name="leap"> 윤달</label></div>
+      <div class="checks"><label class="check leap"><input type="checkbox" name="leap"> 윤달</label></div>
     </fieldset>
     <fieldset data-ev="기일">
       <legend>기일</legend>
       <div class="grid3">
-        <select name="cal" aria-label="기일 달력"><option value="">없음</option><option value="solar">양력</option><option value="lunar">음력</option></select>
+        <div class="seg cal" role="radiogroup" aria-label="기일 달력"><label><input type="radio" name="cal_death" value="solar" data-cal checked><span>양력</span></label><label><input type="radio" name="cal_death" value="lunar" data-cal><span>음력</span></label></div>
         <input name="m" type="number" inputmode="numeric" min="1" max="12" placeholder="월" aria-label="기일 월">
         <input name="d" type="number" inputmode="numeric" min="1" max="31" placeholder="일" aria-label="기일 일">
       </div>
-      <div class="checks"><label class="check"><input type="checkbox" name="leap"> 윤달</label><label class="check"><input type="checkbox" name="eve"> 제사는 전날 밤에 지내요</label></div>
+      <div class="checks"><label class="check leap"><input type="checkbox" name="leap"> 윤달</label><label class="check"><input type="checkbox" name="eve"> 제사는 전날 밤에 지내요</label></div>
     </fieldset>
     <div class="actions">
       <button type="button" class="btn gray" id="cancel">닫기</button>

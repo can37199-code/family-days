@@ -429,7 +429,7 @@ function openForm(id) {
   form.me.checked = id ? data.meId === id : !data.meId; // 첫 사람은 기본으로 '나'
   form.querySelectorAll('fieldset').forEach(fs => {
     const e = p.events.find(x => x.type === fs.dataset.ev) || {};
-    fs.querySelector('[name=cal]').value = e.cal || '';
+    fs.querySelectorAll('[data-cal]').forEach(r => r.checked = r.value === (e.cal || 'solar'));
     fs.querySelector('[name=m]').value = e.m || '';
     fs.querySelector('[name=d]').value = e.d || '';
     fs.querySelector('[name=leap]').checked = !!e.leap;
@@ -442,9 +442,10 @@ function openForm(id) {
 form.onsubmit = e => {
   const events = [];
   for (const fs of form.querySelectorAll('fieldset')) {
-    const cal = fs.querySelector('[name=cal]').value;
-    if (!cal) continue;
-    const m = +fs.querySelector('[name=m]').value, d = +fs.querySelector('[name=d]').value;
+    const cal = fs.querySelector('[data-cal]:checked').value;
+    const mv = fs.querySelector('[name=m]').value, dv = fs.querySelector('[name=d]').value;
+    if (!mv && !dv) continue; // 월·일을 비워 두면 그 기념일은 없음
+    const m = +mv, d = +dv;
     if (!(m >= 1 && m <= 12 && d >= 1 && d <= (cal === 'lunar' ? 30 : 31))) {
       e.preventDefault();
       return alert(`${fs.dataset.ev} 날짜를 확인해 주세요. (음력은 30일까지)`);
