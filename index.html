@@ -116,13 +116,16 @@
   .couple > .person { box-shadow:none; }
   .couple > .person:first-child:not(:last-child) { border-radius:16px 0 0 16px; }
   .couple > .person:last-child:not(:first-child) { border-radius:0 16px 16px 0; }
-  .heart { width:1px; background:var(--line); margin:14px 0; display:flex; align-items:center; justify-content:center; z-index:1; }
+  .heart { pointer-events:none; width:1px; background:var(--line); margin:14px 0; display:flex; align-items:center; justify-content:center; z-index:1; }
   .heart::before { content:""; flex:none; width:20px; height:20px; border-radius:50%; background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f0548b' d='M12 20s-7-4.4-7-9.5A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.5C19 15.6 12 20 12 20z'/%3E%3C/svg%3E") center/14px no-repeat; box-shadow:0 0 0 1px var(--line); }
   .person.dragging { opacity:.3; }
   .person.ghost { position:fixed; left:0; top:0; z-index:50; pointer-events:none; cursor:grabbing; box-shadow:var(--shadow-lg); border-radius:16px !important; }
   .person[data-drop] { box-shadow:0 0 0 2px var(--accent), var(--shadow); z-index:2; }
   .person[data-drop]::after { content:attr(data-drop); position:absolute; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); font-size:12px; font-weight:600; padding:4px 10px; border-radius:8px; white-space:nowrap; }
-  .person[data-zone=parent]::after, .person[data-zone=spouse]::after { top:-30px; }
+  .person[data-zone=parent]::after, .person[data-zone=spouse]::after, .person[data-zone=before]::after, .person[data-zone=after]::after { top:-30px; }
+  /* 형제 순서 바꾸기: 들어갈 쪽 가장자리에 파란 막대 */
+  .person[data-zone=before] { box-shadow:-4px 0 0 var(--accent), var(--shadow); }
+  .person[data-zone=after] { box-shadow:4px 0 0 var(--accent), var(--shadow); }
   .person[data-zone=child]::after { bottom:-30px; }
   .zoom { position:absolute; right:16px; bottom:16px; display:flex; align-items:center; background:var(--surface); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
   .zoom button { width:40px; height:40px; border:0; background:none; font-size:20px; cursor:pointer; color:var(--ink-2); }

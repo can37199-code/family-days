@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, isSibling, moveSibling } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -31,7 +31,7 @@ if (location.hash.startsWith('#d=')) {
 
 const TITLES = {
   upcoming: ['다가오는 날', '양가 생신·기일을 음력까지 챙겨 드려요'],
-  tree: ['관계도', '카드를 다른 카드의 옆·아래·위에 놓으면 배우자·자녀·부모로 연결돼요'],
+  tree: ['관계도', '카드를 옆에 놓으면 배우자, 아래는 아들·딸, 위는 부모로 연결돼요. 형제끼리는 양 끝에 놓아 순서를 바꿔요'],
   share: ['알림·공유', ''],
 };
 let tab = 'upcoming';
@@ -234,7 +234,14 @@ $('#view').addEventListener('click', e => {
 });
 
 // ── 관계도 드래그앤드롭: 다른 카드의 위(부모)·옆(배우자)·아래(자녀)에 놓으면 붙고, 빈 곳에 놓으면 떨어진다 ──
-const ZONE = { parent: '부모로', spouse: '배우자로', child: '자녀로' };
+// 형제 카드의 왼쪽·오른쪽 끝에 놓으면 형제 순서를 바꾼다
+// 끄는 사람의 성별로 부른다: 아들로·딸로, 아버지로·어머니로, 남편으로·아내로
+const ROLE = {
+  parent: { M: '아버지로', F: '어머니로', '': '부모로' },
+  spouse: { M: '남편으로', F: '아내로', '': '배우자로' },
+  child: { M: '아들로', F: '딸로', '': '자녀로' },
+};
+const dropLabel = (kind, g) => kind === 'before' ? '이 앞으로 옮기기' : kind === 'after' ? '이 뒤로 옮기기' : ROLE[kind][g || ''] + ' 연결';
 let drag = null, suppressClick = false;
 
 $('#view').addEventListener('pointerdown', e => {
@@ -245,7 +252,8 @@ $('#view').addEventListener('pointerdown', e => {
 function dropTarget(x, y) {
   const el = document.elementFromPoint(x, y)?.closest('.fam .person');
   if (!el || el === drag.card) return null;
-  const r = el.getBoundingClientRect(), ry = (y - r.top) / r.height;
+  const r = el.getBoundingClientRect(), ry = (y - r.top) / r.height, rx = (x - r.left) / r.width;
+  if (isSibling(data.people, drag.id, el.dataset.id) && (rx < 0.3 || rx > 0.7)) return { el, id: el.dataset.id, kind: rx < 0.3 ? 'before' : 'after' };
   return { el, id: el.dataset.id, kind: ry < 0.3 ? 'parent' : ry > 0.7 ? 'child' : 'spouse' };
 }
 
@@ -268,7 +276,7 @@ function updateDrag() {
   drag.ghost.style.transform = `translate(${drag.px - drag.dx}px, ${drag.py - drag.dy}px)`;
   drag.t?.el.removeAttribute('data-drop');
   drag.t = dropTarget(drag.px, drag.py);
-  if (drag.t) { drag.t.el.dataset.drop = ZONE[drag.t.kind] + ' 연결'; drag.t.el.dataset.zone = drag.t.kind; }
+  if (drag.t) { drag.t.el.dataset.drop = dropLabel(drag.t.kind, byId(drag.id).gender); drag.t.el.dataset.zone = drag.t.kind; }
 }
 
 // 끌면서 관계도 가장자리에 가면 그쪽으로 스크롤
@@ -291,10 +299,13 @@ function endDrag(cancelled) {
   suppressClick = true; setTimeout(() => suppressClick = false);
   if (cancelled) return;
   const before = JSON.stringify(data), me = byId(d.id);
-  if (d.t) {
+  if (d.t?.kind === 'before' || d.t?.kind === 'after') {
+    moveSibling(data.people, d.id, d.t.id, d.t.kind === 'after');
+    commit(`${me.name}님의 순서를 ${byId(d.t.id).name}님 ${d.t.kind === 'after' ? '뒤로' : '앞으로'} 옮겼어요`, before);
+  } else if (d.t) {
     const err = link(data.people, d.id, d.t.id, d.t.kind);
     if (err) return alert(err);
-    commit(`${me.name}님을 ${byId(d.t.id).name}님의 ${ZONE[d.t.kind].slice(0, -1)}로 연결했어요`, before);
+    commit(`${me.name}님을 ${byId(d.t.id).name}님의 ${ROLE[d.t.kind][me.gender || '']} 연결했어요`, before);
   } else if (me.parentId || me.spouseId) {
     detach(data.people, d.id);
     commit(`${me.name}님의 연결을 끊었어요`, before);

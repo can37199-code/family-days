@@ -46,6 +46,18 @@ assert.equal(f.find(p => p.id === 'hb').parentId, null);
 assert.equal(f.find(p => p.id === 'kid').parentId, 'me');       // 자녀는 그대로
 assert.equal(link(f, 'gm', 'x', 'parent'), null);               // 부모로 붙이기
 assert.equal(f.find(p => p.id === 'x').parentId, 'gm');
+// 형제 순서
+const { isSibling, moveSibling } = await import('./core.js');
+const sib = [P0('dad', null, 'mom'), P0('mom', null, 'dad'), P0('a', 'dad'), P0('b', 'mom'), P0('c', 'dad'), P0('x')];
+function P0(id, parentId = null, spouseId = null) { return { id, parentId, spouseId, events: [] }; }
+assert.ok(isSibling(sib, 'a', 'b'));            // 아빠·엄마 쪽으로 따로 이어져도 형제
+assert.ok(!isSibling(sib, 'a', 'x'));
+assert.ok(!isSibling(sib, 'a', 'a'));
+moveSibling(sib, 'c', 'a', false);
+assert.deepEqual(sib.map(p => p.id), ['dad', 'mom', 'c', 'a', 'b', 'x']);
+moveSibling(sib, 'c', 'b', true);
+assert.deepEqual(sib.map(p => p.id), ['dad', 'mom', 'a', 'b', 'c', 'x']);
+
 // '나' 기준 호칭
 const { kinship, relabel, guessGender } = await import('./core.js');
 const P = (id, gender, parentId = null, spouseId = null) => ({ id, gender, parentId, spouseId, events: [] });

@@ -113,6 +113,18 @@ export function link(people, a, b, kind) {
   return null;
 }
 
+// 같은 부모(부부 중 누구로 이어졌든)를 둔 형제인가
+export function isSibling(people, a, b) {
+  const pa = find(people, a)?.parentId, pb = find(people, b)?.parentId;
+  return a !== b && !!pa && !!pb && unit(people, pa).includes(pb);
+}
+
+// 형제 순서 = 배열 순서. a를 b 앞(after면 뒤)으로 옮긴다.
+export function moveSibling(people, a, b, after) {
+  const item = people.splice(people.findIndex(p => p.id === a), 1)[0];
+  people.splice(people.findIndex(p => p.id === b) + (after ? 1 : 0), 0, item);
+}
+
 // 가족도에서 떼어내기: 부모·배우자 연결만 끊고, 이 사람의 자녀는 그대로 따라온다.
 export function detach(people, id) {
   setSpouse(people, id, null);
