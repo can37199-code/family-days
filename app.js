@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, linkSibling, prunePlaceholders, siblingTerm, genderOf, isSibling, fillPlaceholder } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, linkSibling, prunePlaceholders, siblingTerm, genderOf, isSibling, fillPlaceholder, fixMarriedSiblings } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -17,13 +17,8 @@ function migrate(d) {
     for (const e of p.events || []) if (e.type === '생신') e.type = '생일';
   }
   // 형제로 붙었다가 부부가 된 예전 데이터(형제이면서 부부) 바로잡기: 시집온 쪽(아내)의 부모 연결을 뗀다
-  // shortcut: 둘 다 같은 성별이면 뒤에 등록된 쪽을 뗀다. 사위가 처가 형제로 잘못 붙은 경우는 직접 다시 끌어야 함
-  for (const p of d.people) {
-    const s = d.people.find(x => x.id === p.spouseId);
-    if (!s || !isSibling(d.people, p.id, s.id)) continue;
-    const inlaw = p.gender === 'F' && s.gender !== 'F' ? p : s.gender === 'F' && p.gender !== 'F' ? s : d.people.indexOf(p) > d.people.indexOf(s) ? p : s;
-    inlaw.parentId = null;
-  }
+  // shortcut: 사위가 처가 형제로 잘못 붙은 경우는 아내 쪽이 떨어지므로 직접 다시 끌어야 함
+  fixMarriedSiblings(d.people);
   relabel(d);
   return d;
 }
@@ -314,6 +309,10 @@ $('#view').addEventListener('pointerdown', e => {
   drag.timer = setTimeout(liftCard, HOLD);
 });
 $('#view').addEventListener('contextmenu', e => { if (e.target.closest('.fam .person')) e.preventDefault(); }); // 길게 누를 때 뜨는 메뉴 막기
+// 관계도에서는 브라우저 기본 끌기·글자 선택을 끈다 (가끔 관계도 전체가 반투명하게 따라오던 문제)
+$('#view').addEventListener('dragstart', e => { if (e.target.closest?.('.canvas')) e.preventDefault(); });
+$('#view').addEventListener('selectstart', e => { if (e.target.closest?.('.canvas')) e.preventDefault(); });
+$('#view').addEventListener('pointerdown', e => { if (e.target.closest('.canvas')) getSelection()?.removeAllRanges(); }, true); // 이미 선택된 글자가 있으면 풀어 둔다
 
 function liftCard() {
   if (!drag || drag.ghost) return;

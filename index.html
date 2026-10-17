@@ -87,6 +87,8 @@
   body[data-tab=tree] { overflow:hidden; }
   /* 캔버스는 고정, 안의 관계도(.fam)를 translate·scale로 움직인다 */
   .canvas { position:relative; height:calc(100dvh - var(--header) - var(--tabbar) - env(safe-area-inset-bottom) - env(safe-area-inset-top)); overflow:hidden; background:var(--bg-2); touch-action:none; overscroll-behavior:contain; cursor:grab; }
+  /* 브라우저 기본 끌기(선택한 글자를 반투명 그림으로 끌고 다님)와 글자 선택을 막는다 */
+  .canvas, .canvas * { user-select:none; -webkit-user-select:none; -webkit-user-drag:none; }
   .canvas.panning { cursor:grabbing; }
   .fam { position:absolute; left:0; top:0; width:max-content; transform-origin:0 0; }
   .fam .tray { max-width:min(640px, 88vw); }

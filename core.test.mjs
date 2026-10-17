@@ -223,4 +223,15 @@ assert.equal(kinship(F, '여동생', 'me'), '오빠');
   assert.equal(Q.find(p => p.id === '성숙').parentId, null);
   assert.equal(kinship(Q, '명완', '성숙'), '형수');
 }
+// 반대로 꼬인 경우: 형수만 시부모의 자녀, 형은 부모 연결 없음 → 형을 아들로 붙이면 형수의 부모 연결이 떨어진다
+{
+  const mk = (id, gender, parentId = null, spouseId = null) => ({ id, gender, parentId, spouseId, events: [] });
+  const Q = [mk('수현', 'M', null, '성숙'), mk('성숙', 'F', '정진', '수현'), mk('명완', 'M', '정진'), mk('정진', 'M', null, '성자'), mk('성자', 'F', null, '정진')];
+  assert.equal(kinship(Q, '명완', '성숙'), '누나');                 // 회장님 화면 그대로: 누나
+  assert.equal(kinship(Q, '명완', '수현'), '매형');                 //               매형
+  assert.equal(link(Q, '수현', '정진', 'child'), null);            // 김수현을 김정진 아래(아들)로
+  assert.equal(Q.find(p => p.id === '성숙').parentId, null);
+  assert.equal(kinship(Q, '명완', '수현'), '형');
+  assert.equal(kinship(Q, '명완', '성숙'), '형수');
+}
 console.log('모든 검사 통과');

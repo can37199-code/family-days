@@ -113,11 +113,25 @@ export function link(people, a, b, kind) {
     const old = find(people, find(people, child).parentId);
     if (old?.placeholder) return fillPlaceholder(people, parent, old.id); // 빈 '부모님' 아래 형제는 다 같이 옮긴다
     find(people, child).parentId = parent;
+    fixMarriedSiblings(people, child); // 방금 자녀로 붙인 사람의 배우자가 같은 부모의 자녀로 남아 있으면 떼어 낸다
   }
   return null;
 }
 
 // 같은 부모(부부 중 누구로 이어졌든)를 둔 형제인가
+// '형제이면서 부부'는 있을 수 없다. 그런 부부가 있으면 한쪽(시집·장가 온 쪽)의 부모 연결을 뗀다.
+// keep: 이 사람은 부모 연결을 지킨다(방금 직접 붙인 사람). 없으면 아내 쪽을, 같은 성별이면 뒤에 등록된 쪽을 뗀다.
+export function fixMarriedSiblings(people, keep = null) {
+  for (const p of people) {
+    const s = find(people, p.spouseId);
+    if (!s || !isSibling(people, p.id, s.id)) continue;
+    const inlaw = keep === p.id ? s : keep === s.id ? p
+      : p.gender === 'F' && s.gender !== 'F' ? p : s.gender === 'F' && p.gender !== 'F' ? s
+      : people.indexOf(p) > people.indexOf(s) ? p : s;
+    inlaw.parentId = null;
+  }
+}
+
 export function isSibling(people, a, b) {
   const pa = find(people, a)?.parentId, pb = find(people, b)?.parentId;
   return a !== b && !!pa && !!pb && unit(people, pa).includes(pb);
