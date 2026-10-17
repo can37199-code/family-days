@@ -81,7 +81,7 @@ assert.equal(K('dil'), '며느리');
 assert.equal(K('gc'), '손녀');
 assert.equal(K('mf'), '아버지');
 assert.equal(K('mm'), '어머니');               // 아버지의 배우자 → 어머니
-assert.equal(K('bro'), '형제');
+assert.equal(K('bro'), '남동생');              // 배열에서 나보다 뒤 = 손아래
 assert.equal(K('nephew'), '조카');
 assert.equal(K('mgf'), '외할아버지');
 assert.equal(K('aunt'), '이모');
@@ -105,4 +105,20 @@ assert.equal(guessGender('나'), '');
 assert.equal(guessGender('시누이 남편'), 'M');
 assert.equal(guessGender('형수'), 'F');      // '형'보다 '형수'가 길게 끝남
 assert.equal(guessGender('작은아버지'), 'M');
+// 부모 없이 형제로 연결 → '부모님' 빈 카드, 순서로 형·동생
+const { linkSibling, prunePlaceholders } = await import('./core.js');
+const sb = [{ id: 'me', gender: 'M', parentId: null, spouseId: null, events: [] }, { id: 'h', gender: 'M', parentId: null, spouseId: null, events: [] }, { id: 's', gender: 'F', parentId: null, spouseId: null, events: [] }];
+assert.equal(linkSibling(sb, 'h', 'me', false), null);         // 김수현을 내 왼쪽(손위)에
+const ph = sb.find(p => p.placeholder);
+assert.ok(ph && sb.find(p => p.id === 'me').parentId === ph.id && sb.find(p => p.id === 'h').parentId === ph.id);
+assert.equal(kinship(sb, 'me', 'h'), '형');
+assert.equal(kinship(sb, 'h', 'me'), '남동생');
+assert.equal(linkSibling(sb, 's', 'me', true), null);          // 내 오른쪽(손아래)에 여자
+assert.equal(kinship(sb, 'me', 's'), '여동생');
+assert.equal(kinship(sb, 's', 'h'), '오빠');
+assert.equal(sb.filter(p => p.placeholder).length, 1);          // 빈 부모 카드는 하나만
+assert.ok(linkSibling(sb, 'me', ph.id, false));                 // 부모와는 형제가 될 수 없음
+for (const id of ['me', 'h', 's']) detach(sb, id);
+prunePlaceholders(sb);
+assert.equal(sb.some(p => p.placeholder), false);               // 자녀가 없어지면 빈 카드 정리
 console.log('모든 검사 통과');

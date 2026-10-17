@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, isSibling, moveSibling } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach, relabel, guessGender, linkSibling, prunePlaceholders, siblingTerm, genderOf } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -37,7 +37,7 @@ if (location.hash.startsWith('#d=')) {
 
 const TITLES = {
   upcoming: ['다가오는 날', '양가 생일·기일을 음력까지 챙겨 드려요'],
-  tree: ['관계도', '카드를 옆에 놓으면 배우자, 아래는 아들·딸, 위는 부모로 연결돼요. 형제끼리는 양 끝에 놓아 순서를 바꿔요'],
+  tree: ['관계도', '카드의 위는 부모, 가운데는 배우자, 아래는 아들·딸, 왼쪽 끝은 형·누나, 오른쪽 끝은 동생으로 연결돼요'],
   share: ['알림·공유', ''],
 };
 let tab = 'upcoming';
@@ -79,8 +79,9 @@ function tree() {
   const done = new Set();
   const card = p => {
     const ev = (p.events || []).map(e => `${e.type} ${describe(e)}`).join('<br>');
-    return `<button class="person ${p.events?.some(e => e.type === '기일') ? 'gone' : ''}" data-id="${p.id}">
-      ${avatar(p)}<b>${h(p.name)}</b><span class="rel">${h(p.rel)}</span>${ev ? `<span class="ev">${ev}</span>` : ''}</button>`;
+    const cls = [p.events?.some(e => e.type === '기일') && 'gone', p.id === data.meId && 'me', p.placeholder && 'ph'].filter(Boolean).join(' ');
+    return `<button class="person ${cls}" data-id="${p.id}">
+      ${avatar(p)}<b>${h(p.name)}</b><span class="rel">${p.placeholder ? '눌러서 정보 입력' : h(p.rel)}</span>${ev ? `<span class="ev">${ev}</span>` : ''}</button>`;
   };
   const node = p => {
     done.add(p.id);
@@ -239,15 +240,19 @@ $('#view').addEventListener('click', e => {
   if (el && !suppressClick) openForm(el.dataset.id);
 });
 
-// ── 관계도 드래그앤드롭: 다른 카드의 위(부모)·옆(배우자)·아래(자녀)에 놓으면 붙고, 빈 곳에 놓으면 떨어진다 ──
-// 형제 카드의 왼쪽·오른쪽 끝에 놓으면 형제 순서를 바꾼다
-// 끄는 사람의 성별로 부른다: 아들로·딸로, 아버지로·어머니로, 남편으로·아내로
+// ── 관계도 드래그앤드롭 ──
+// 다른 카드의 위(부모)·가운데(배우자)·아래(자녀)·왼쪽 끝(손위 형제)·오른쪽 끝(손아래 형제)에 놓으면 연결, 빈 곳에 놓으면 끊김
+// 끄는 사람의 성별로 부른다: 아들로·딸로, 아버지로·어머니로, 남편으로·아내로, 형으로·누나로·남동생으로…
 const ROLE = {
-  parent: { M: '아버지로', F: '어머니로', '': '부모로' },
-  spouse: { M: '남편으로', F: '아내로', '': '배우자로' },
-  child: { M: '아들로', F: '딸로', '': '자녀로' },
+  parent: { M: '아버지', F: '어머니', '': '부모' },
+  spouse: { M: '남편', F: '아내', '': '배우자' },
+  child: { M: '아들', F: '딸', '': '자녀' },
 };
-const dropLabel = (kind, g) => kind === 'before' ? '이 앞으로 옮기기' : kind === 'after' ? '이 뒤로 옮기기' : ROLE[kind][g || ''] + ' 연결';
+// 받침 있으면 '으로'(ㄹ 받침은 '로')
+const ro = w => { const c = w.charCodeAt(w.length - 1) - 0xAC00, j = c >= 0 && c < 11172 ? c % 28 : 0; return w + (j && j !== 8 ? '으로' : '로'); };
+const roleTerm = (kind, d, t) => kind === 'before' || kind === 'after'
+  ? siblingTerm(d.gender, genderOf(data.people, t), kind === 'before')
+  : ROLE[kind][d.gender || ''];
 let drag = null, suppressClick = false;
 
 $('#view').addEventListener('pointerdown', e => {
@@ -259,16 +264,14 @@ function dropTarget(x, y) {
   const el = document.elementFromPoint(x, y)?.closest('.fam .person');
   if (!el || el === drag.card) return null;
   const r = el.getBoundingClientRect(), ry = (y - r.top) / r.height, rx = (x - r.left) / r.width;
-  if (isSibling(data.people, drag.id, el.dataset.id) && (rx < 0.3 || rx > 0.7)) return { el, id: el.dataset.id, kind: rx < 0.3 ? 'before' : 'after' };
-  return { el, id: el.dataset.id, kind: ry < 0.3 ? 'parent' : ry > 0.7 ? 'child' : 'spouse' };
+  const kind = rx < 0.22 ? 'before' : rx > 0.78 ? 'after' : ry < 0.3 ? 'parent' : ry > 0.7 ? 'child' : 'spouse';
+  return { el, id: el.dataset.id, kind };
 }
 
 addEventListener('pointermove', e => {
   if (!drag) return;
   if (!drag.ghost) {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return; // 살짝 누른 건 탭
-    const r = drag.card.getBoundingClientRect();
-    drag.dx = (drag.x - r.left) / zoom; drag.dy = (drag.y - r.top) / zoom; // 끌리는 카드는 100% 크기
     drag.ghost = Object.assign(drag.card.cloneNode(true), { className: drag.card.className + ' ghost' });
     document.body.append(drag.ghost);
     drag.card.classList.add('dragging');
@@ -278,14 +281,21 @@ addEventListener('pointermove', e => {
   updateDrag();
 });
 
+// 끄는 카드는 작게 손가락 오른쪽 아래에, 안내는 손가락 위에 띄워 놓을 자리를 가리지 않게
 function updateDrag() {
-  drag.ghost.style.transform = `translate(${drag.px - drag.dx}px, ${drag.py - drag.dy}px)`;
-  drag.t?.el.removeAttribute('data-drop');
+  drag.ghost.style.transform = `translate(${drag.px + 14}px, ${drag.py + 18}px) scale(.62)`;
+  drag.t?.el.removeAttribute('data-zone');
   drag.t = dropTarget(drag.px, drag.py);
-  if (drag.t) { drag.t.el.dataset.drop = dropLabel(drag.t.kind, byId(drag.id).gender); drag.t.el.dataset.zone = drag.t.kind; }
+  const hint = $('#dragHint');
+  if (drag.t) {
+    drag.t.el.dataset.zone = drag.t.kind;
+    hint.textContent = `${ro(roleTerm(drag.t.kind, byId(drag.id), byId(drag.t.id)))} 연결`;
+  } else hint.textContent = byId(drag.id).parentId || byId(drag.id).spouseId ? '여기 놓으면 연결 끊기' : '가족 카드 위에 놓아 주세요';
+  hint.style.transform = `translate(${drag.px}px, ${drag.py - 52}px) translateX(-50%)`;
+  hint.hidden = false;
 }
 
-// 끌면서 관계도 가장자리에 가면 그쪽으로 스크롤
+// 끌면서 관계도 가장자리에 가면 그쪽으로 이동
 function autoScroll() {
   if (!drag?.ghost) return;
   const c = $('.canvas');
@@ -301,17 +311,16 @@ function endDrag(cancelled) {
   if (!drag) return;
   const d = drag; drag = null;
   if (!d.ghost) return;
-  d.ghost.remove(); d.card.classList.remove('dragging'); d.t?.el.removeAttribute('data-drop');
+  d.ghost.remove(); d.card.classList.remove('dragging'); d.t?.el.removeAttribute('data-zone');
+  $('#dragHint').hidden = true;
   suppressClick = true; setTimeout(() => suppressClick = false);
   if (cancelled) return;
-  const before = JSON.stringify(data), me = byId(d.id);
-  if (d.t?.kind === 'before' || d.t?.kind === 'after') {
-    moveSibling(data.people, d.id, d.t.id, d.t.kind === 'after');
-    commit(`${me.name}님의 순서를 ${byId(d.t.id).name}님 ${d.t.kind === 'after' ? '뒤로' : '앞으로'} 옮겼어요`, before);
-  } else if (d.t) {
-    const err = link(data.people, d.id, d.t.id, d.t.kind);
+  const before = JSON.stringify(data), me = byId(d.id), t = d.t && byId(d.t.id);
+  if (d.t) {
+    const sib = d.t.kind === 'before' || d.t.kind === 'after';
+    const err = sib ? linkSibling(data.people, d.id, d.t.id, d.t.kind === 'after') : link(data.people, d.id, d.t.id, d.t.kind);
     if (err) return alert(err);
-    commit(`${me.name}님을 ${byId(d.t.id).name}님의 ${ROLE[d.t.kind][me.gender || '']} 연결했어요`, before);
+    commit(`${me.name}님을 ${t.name}님의 ${ro(roleTerm(d.t.kind, me, t))} 연결했어요`, before);
   } else if (me.parentId || me.spouseId) {
     detach(data.people, d.id);
     commit(`${me.name}님의 연결을 끊었어요`, before);
@@ -323,7 +332,7 @@ addEventListener('pointercancel', () => endDrag(true));
 // 바뀐 관계 저장 + 되돌리기 안내
 let toastTimer;
 function commit(msg, before) {
-  relabel(data); save(); render();
+  prunePlaceholders(data.people); relabel(data); save(); render();
   const t = $('#toast');
   t.innerHTML = `<span>${h(msg)}</span><button type="button">되돌리기</button>`;
   t.hidden = false;
@@ -378,6 +387,7 @@ form.onsubmit = e => {
   const before = JSON.stringify(data);
   const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null, rel: '' };
   Object.assign(p, { name: form.name.value.trim(), gender: form.gender.value, events });
+  delete p.placeholder; // 빈 '부모님' 카드도 정보를 넣으면 보통 카드
   if (form.me.checked) data.meId = p.id;
   else if (data.meId === p.id) data.meId = null;
   if (editing) return relabel(data), save(), render();
@@ -392,7 +402,7 @@ $('#del').onclick = () => {
   data.people = data.people.filter(x => x.id !== p.id);
   data.people.forEach(x => { if (x.parentId === p.id) x.parentId = null; if (x.spouseId === p.id) x.spouseId = null; });
   if (data.meId === p.id) data.meId = null;
-  relabel(data); save(); dlg.close(); render();
+  prunePlaceholders(data.people); relabel(data); save(); dlg.close(); render();
 };
 
 render();

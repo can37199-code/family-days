@@ -125,6 +125,30 @@ export function moveSibling(people, a, b, after) {
   people.splice(people.findIndex(p => p.id === b) + (after ? 1 : 0), 0, item);
 }
 
+// a를 b의 형제로(after면 b 뒤=손아래, 아니면 앞=손위). b의 부모가 없으면 이어 줄 '부모님' 빈 카드를 만든다.
+export function linkSibling(people, a, b, after) {
+  if (a === b) return '같은 사람입니다.';
+  if (unit(people, b).includes(a)) return '부부 사이는 형제로 연결할 수 없어요.';
+  if (isAncestor(people, a, b) || isAncestor(people, b, a)) return '부모·자녀 사이는 형제로 연결할 수 없어요.';
+  const tb = find(people, b);
+  if (!tb.parentId) {
+    const ph = { id: globalThis.crypto.randomUUID(), name: '부모님', gender: '', placeholder: true, parentId: null, spouseId: null, rel: '', events: [] };
+    people.push(ph);
+    tb.parentId = ph.id;
+  }
+  find(people, a).parentId = tb.parentId;
+  moveSibling(people, a, b, after);
+  return null;
+}
+
+// 자녀도 배우자도 없어진 '부모님' 빈 카드는 지운다
+export function prunePlaceholders(people) {
+  for (let i = people.length - 1; i >= 0; i--) {
+    const p = people[i];
+    if (p.placeholder && !p.spouseId && !people.some(c => c.parentId === p.id)) people.splice(i, 1);
+  }
+}
+
 // 가족도에서 떼어내기: 부모·배우자 연결만 끊고, 이 사람의 자녀는 그대로 따라온다.
 export function detach(people, id) {
   setSpouse(people, id, null);
@@ -170,6 +194,15 @@ function kinPath(people, meId, id) {
 }
 
 // 경로 한 덩어리를 부르는 말. 모르면 null
+// 형제 호칭. 형제 순서(배열 순서, 관계도 왼쪽이 손위)로 손위·손아래를 가른다.
+// g: 그 형제의 성별, me: 부르는 사람의 성별
+export function siblingTerm(g, me, older) {
+  if (!older) return g === 'M' ? '남동생' : g === 'F' ? '여동생' : '동생';
+  if (g === 'M') return me === 'M' ? '형' : me === 'F' ? '오빠' : '형·오빠';
+  if (g === 'F') return me === 'M' ? '누나' : me === 'F' ? '언니' : '누나·언니';
+  return '손위 형제';
+}
+
 function directTerm(people, path, viewer) {
   const k = path.map(x => x.step).join(''), g = genderOf(people, path.at(-1).p), g1 = genderOf(people, path[0].p);
   const me = genderOf(people, viewer);
@@ -181,7 +214,7 @@ function directTerm(people, path, viewer) {
     case 'PP': return g1 ? (g1 === 'F' ? '외' : '') + by('할아버지', '할머니', '조부모') : by('할아버지', '할머니', '조부모');
     case 'CC': return by('손자', '손녀', '손주');
     case 'CS': return by('사위', '며느리', null);
-    case 'PC': return by('형제', '자매', '형제자매');
+    case 'PC': return siblingTerm(g, me, people.indexOf(path.at(-1).p) < people.indexOf(viewer));
     case 'PCC': return '조카';
     case 'PPCC': return '사촌';
     case 'PPC': return g1 === 'M' ? by('삼촌', '고모', null) : g1 === 'F' ? by('외삼촌', '이모', null) : null;
