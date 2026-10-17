@@ -188,4 +188,15 @@ assert.equal(kinship(F, '여동생', 'me'), '오빠');
   assert.equal(kinship(Q, '명완', '정진'), '아버지');
   assert.equal(kinship(Q, '명완', '수현'), '형');
 }
+// 형제(누나)로 잘못 붙였다가 아내로 바꾸면 형제 쪽 부모 연결이 떨어져야 형수가 된다
+{
+  const mk = (id, gender) => ({ id, gender, parentId: null, spouseId: null, events: [] });
+  const Q = [mk('명완', 'M'), mk('수현', 'M'), mk('성숙', 'F')];
+  linkSibling(Q, '수현', '명완', false);
+  linkSibling(Q, '성숙', '수현', false);              // 실수로 누나로
+  assert.equal(kinship(Q, '명완', '성숙'), '누나');
+  assert.equal(link(Q, '성숙', '수현', 'spouse'), null); // 아내로 바로잡기
+  assert.equal(Q.find(p => p.id === '성숙').parentId, null);
+  assert.equal(kinship(Q, '명완', '성숙'), '형수');
+}
 console.log('모든 검사 통과');

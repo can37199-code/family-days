@@ -103,6 +103,8 @@ export function link(people, a, b, kind) {
   if (a === b) return '같은 사람입니다.';
   if (kind === 'spouse') {
     if (isAncestor(people, a, b) || isAncestor(people, b, a)) return '부모·자녀 사이는 부부로 붙일 수 없어요.';
+    // 형제로 잘못 붙어 있던 사람을 배우자로 바꾸면, 끌어 온 쪽(a)은 그 집안에 시집·장가 온 사람이므로 부모 연결을 뗀다
+    if (isSibling(people, a, b)) find(people, a).parentId = null;
     setSpouse(people, a, b);
   } else {
     const [child, parent] = kind === 'child' ? [a, b] : [b, a];
