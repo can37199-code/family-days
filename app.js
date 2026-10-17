@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, setSpouse, detach } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, detach } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -33,7 +33,7 @@ function upcoming() {
   const t = today();
   const rows = data.people.flatMap(p => (p.events || []).map(e => ({ p, e, date: nextDate(e, t) })))
     .filter(r => r.date).sort((a, b) => a.date.localeCompare(b.date));
-  if (!rows.length) return `<p class="empty">아직 등록된 기념일이 없습니다.<br>아래 <b>＋ 가족 추가</b>로 시작하세요.</p>`;
+  if (!rows.length) return `<p class="empty">아직 등록된 기념일이 없습니다.<br><b>가족도</b> 탭에서 가족을 추가해 시작하세요.</p>`;
   return rows.map(({ p, e, date }) => {
     const n = daysBetween(t, date);
     const [, mm, dd] = date.split('-');
@@ -61,8 +61,12 @@ function tree() {
     return `<li><span class="couple">${card(p)}${s ? `<span class="heart" aria-hidden="true"></span>${card(s)}` : ''}</span>
       ${kids.length ? `<ul>${kids.map(k => done.has(k.id) ? '' : node(k)).join('')}</ul>` : ''}</li>`;
   };
+  // 아무와도 안 이어진 사람(막 추가한 사람)은 위쪽 대기칸에 모아 끌어 붙이기 쉽게
+  const loose = data.people.filter(p => !byId(p.parentId) && !byId(p.spouseId) && !data.people.some(c => c.parentId === p.id));
+  loose.forEach(p => done.add(p.id));
+  const tray = loose.length ? `<div class="tray"><div class="sub">아직 연결 안 된 가족 · 끌어서 가족 카드에 붙이세요</div>${loose.map(card).join('')}</div>` : '';
   // 부모가 등록 안 된 사람부터. 배우자 쪽에 부모가 있으면 그쪽 가지에서 함께 그린다.
-  const roots = data.people.filter(p => !byId(p.parentId) && !byId(byId(p.spouseId)?.parentId));
+  const roots = data.people.filter(p => !done.has(p.id) && !byId(p.parentId) && !byId(byId(p.spouseId)?.parentId));
   // 양가처럼 자녀가 이미 다른 가지에 그려진 경우엔 "○○의 부모님"으로 이어 준다.
   let html = roots.map(p => {
     if (done.has(p.id)) return '';
@@ -72,7 +76,7 @@ function tree() {
   }).join('');
   const rest = data.people.filter(p => !done.has(p.id)); // 순환 등으로 빠진 사람도 보이게
   if (rest.length) html += `<div class="branch"><ul>${rest.map(p => `<li>${card(p)}</li>`).join('')}</ul></div>`;
-  return `<div class="tree">${html}</div><p class="sub">카드를 끌어다 다른 카드의 <b>옆</b>에 놓으면 부부, <b>아래</b>는 자녀, <b>위</b>는 부모로 붙습니다.
+  return `<div class="fam">${tray}<div class="tree">${html}</div></div><p class="sub">카드를 끌어다 다른 카드의 <b>옆</b>에 놓으면 부부, <b>아래</b>는 자녀, <b>위</b>는 부모로 붙습니다.
     빈 곳에 놓으면 떨어집니다. 누르면 수정할 수 있고, 점선 카드는 기일이 있는 분입니다.</p>`;
 }
 
@@ -89,15 +93,15 @@ function share() {
 
 function render() {
   // 가족도는 카드가 새 자리로 미끄러져 붙고 떨어지게(FLIP 애니메이션)
-  const old = new Map([...document.querySelectorAll('.tree .person')].map(el => [el.dataset.id, el.getBoundingClientRect()]));
+  const old = new Map([...document.querySelectorAll('.fam .person')].map(el => [el.dataset.id, el.getBoundingClientRect()]));
   $('#view').innerHTML = tab === 'upcoming' ? upcoming() : tab === 'tree' ? tree() : share();
   if (tab === 'tree' && old.size && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    document.querySelectorAll('.tree .person').forEach(el => {
+    document.querySelectorAll('.fam .person').forEach(el => {
       const a = old.get(el.dataset.id), b = el.getBoundingClientRect();
       if (a) el.animate([{ transform: `translate(${a.left - b.left}px, ${a.top - b.top}px)` }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
     });
   }
-  $('#add').hidden = tab === 'share';
+  $('#add').hidden = tab !== 'tree'; // 가족 추가는 가족도에서만
   if (tab === 'share') {
     $('#ics').onclick = () => {
       if (!data.people.length) return alert('먼저 가족을 추가해 주세요.');
@@ -117,17 +121,16 @@ function render() {
 $('#view').addEventListener('click', e => { const el = e.target.closest('[data-id]'); if (el && !suppressClick) openForm(el.dataset.id); });
 
 // ── 가족도 드래그앤드롭: 다른 카드의 위(부모)·옆(배우자)·아래(자녀)에 놓으면 붙고, 빈 곳에 놓으면 떨어진다 ──
-// shortcut: 끌면서 화면 끝에 가도 자동 스크롤은 안 됨. 가족이 많아 화면을 넘으면 추가.
 const ZONE = { parent: '부모로', spouse: '배우자로', child: '자녀로' };
 let drag = null, suppressClick = false;
 
 $('#view').addEventListener('pointerdown', e => {
-  const card = e.target.closest('.tree .person');
+  const card = e.target.closest('.fam .person');
   if (card && e.button === 0) drag = { id: card.dataset.id, card, x: e.clientX, y: e.clientY };
 });
 
 function dropTarget(x, y) {
-  const el = document.elementFromPoint(x, y)?.closest('.tree .person');
+  const el = document.elementFromPoint(x, y)?.closest('.fam .person');
   if (!el || el === drag.card) return null;
   const r = el.getBoundingClientRect(), ry = (y - r.top) / r.height;
   return { el, id: el.dataset.id, kind: ry < 0.3 ? 'parent' : ry > 0.7 ? 'child' : 'spouse' };
@@ -143,12 +146,31 @@ addEventListener('pointermove', e => {
     drag.ghost.style.width = r.width + 'px';
     document.body.append(drag.ghost);
     drag.card.classList.add('dragging');
+    requestAnimationFrame(autoScroll);
   }
-  drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
-  drag.t?.el.removeAttribute('data-drop');
-  drag.t = dropTarget(e.clientX, e.clientY);
-  if (drag.t) { drag.t.el.dataset.drop = ZONE[drag.t.kind] + ' 붙이기'; drag.t.el.dataset.zone = drag.t.kind; }
+  drag.px = e.clientX; drag.py = e.clientY;
+  updateDrag();
 });
+
+function updateDrag() {
+  drag.ghost.style.transform = `translate(${drag.px - drag.dx}px, ${drag.py - drag.dy}px)`;
+  drag.t?.el.removeAttribute('data-drop');
+  drag.t = dropTarget(drag.px, drag.py);
+  if (drag.t) { drag.t.el.dataset.drop = ZONE[drag.t.kind] + ' 붙이기'; drag.t.el.dataset.zone = drag.t.kind; }
+}
+
+// 끌면서 화면(위아래)·가족도(좌우) 가장자리에 가면 그쪽으로 스크롤
+function autoScroll() {
+  if (!drag?.ghost) return;
+  const E = 48, step = (pos, lo, hi) => pos < lo + E ? -12 : pos > hi - E ? 12 : 0;
+  const vy = step(drag.py, 0, innerHeight);
+  const tree = $('.tree'), r = tree?.getBoundingClientRect();
+  const vx = r && drag.py >= r.top && drag.py <= r.bottom ? step(drag.px, r.left, r.right) : 0;
+  if (vy) scrollBy(0, vy);
+  if (vx) tree.scrollLeft += vx;
+  if (vx || vy) updateDrag();
+  requestAnimationFrame(autoScroll);
+}
 
 function endDrag(cancelled) {
   if (!drag) return;
@@ -193,12 +215,8 @@ function openForm(id) {
   const p = byId(id) || { events: [] };
   $('#formTitle').textContent = id ? '가족 정보 수정' : '가족 추가';
   $('#del').hidden = !id;
-  const opts = sel => `<option value="">없음</option>` + data.people.filter(x => x.id !== id)
-    .map(x => `<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${h(x.name)} ${x.rel ? '(' + h(x.rel) + ')' : ''}</option>`).join('');
   form.name.value = p.name || '';
   form.rel.value = p.rel || '';
-  form.parentId.innerHTML = opts(p.parentId);
-  form.spouseId.innerHTML = opts(p.spouseId);
   form.querySelectorAll('fieldset').forEach(fs => {
     const e = p.events.find(x => x.type === fs.dataset.ev) || {};
     fs.querySelector('[name=cal]').value = e.cal || '';
@@ -223,17 +241,14 @@ form.onsubmit = e => {
     }
     events.push({ type: fs.dataset.ev, cal, m, d, leap: cal === 'lunar' && fs.querySelector('[name=leap]').checked, eve: !!fs.querySelector('[name=eve]')?.checked });
   }
+  // 관계(부모·배우자)는 가족도에서 드래그로만 정한다
   const before = JSON.stringify(data.people);
   const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null };
   Object.assign(p, { name: form.name.value.trim(), rel: form.rel.value.trim(), events });
-  if (!editing) data.people.push(p);
-  // 관계는 드래그와 같은 규칙으로 (순환·부부끼리 부모자녀 막기, 배우자 양쪽 기록)
-  const spouseId = form.spouseId.value || null, parentId = form.parentId.value || null;
-  let err = null;
-  if (spouseId !== (p.spouseId || null)) err = spouseId ? link(data.people, p.id, spouseId, 'spouse') : (setSpouse(data.people, p.id, null), null);
-  if (!err && parentId !== (p.parentId || null)) err = parentId ? link(data.people, p.id, parentId, 'child') : (p.parentId = null, null);
-  if (err) { data.people = JSON.parse(before); e.preventDefault(); return alert(err); }
-  save(); render();
+  if (editing) return save(), render();
+  data.people.push(p);
+  commit(`${p.name}님을 추가했어요. 카드를 끌어 가족에게 붙여 주세요.`, before);
+  document.querySelector(`.fam .person[data-id="${p.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'center' });
 };
 
 $('#del').onclick = () => {

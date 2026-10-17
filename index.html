@@ -26,6 +26,8 @@
   .item .what { flex:1; }
   .item .sub, .sub { color:var(--sub); font-size:14px; }
   .tree { overflow-x:auto; padding:8px 0 24px; display:flex; gap:40px; align-items:flex-start; }
+  .tray { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; padding:12px; margin-bottom:12px; border:2px dashed var(--line); border-radius:14px; }
+  .tray > .sub { flex-basis:100%; }
   .branch { flex:0 0 auto; margin:0 auto; text-align:center; }
   .branch > .sub { margin-bottom:8px; }
   .tree ul { padding-top:20px; position:relative; display:flex; justify-content:center; margin:0; padding-left:0; }
@@ -99,10 +101,6 @@
     <input id="f-name" name="name" required placeholder="예: 김영희">
     <label for="f-rel">관계 (나와의)</label>
     <input id="f-rel" name="rel" placeholder="예: 어머니, 시아버지">
-    <div class="row">
-      <div><label for="f-parent">부모</label><select id="f-parent" name="parentId"></select></div>
-      <div><label for="f-spouse">배우자</label><select id="f-spouse" name="spouseId"></select></div>
-    </div>
     <fieldset data-ev="생신">
       <legend>생신</legend>
       <div class="row">
