@@ -7,7 +7,9 @@
 <meta name="theme-color" content="#ffffff">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="기념일">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   /* 색은 전부 토큰으로. 다크모드는 <html data-theme="dark">만 붙이면 켜진다 */
@@ -213,6 +215,7 @@
   /* 형제·배우자 선택창 */
   .opt { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; border:0; border-radius:16px; background:var(--bg-2); padding:16px 18px; margin-bottom:8px; cursor:pointer; text-align:left; }
   .opt b { font-size:17px; font-weight:700; }
+  .pick-desc { margin:-8px 0 16px; color:var(--ink-2); font-size:15px; line-height:1.6; }
   .opt small { font-size:13px; color:var(--sub); }
   .opt:active { background:var(--bg-3); }
   .del { display:block; margin:14px auto 0; border:0; background:none; color:var(--danger); font-size:14px; font-weight:600; cursor:pointer; padding:8px; }
@@ -251,8 +254,9 @@
 <dialog id="pick">
   <form method="dialog">
     <h2 id="pickTitle"></h2>
+    <p id="pickDesc" class="pick-desc" hidden></p>
     <div id="pickOpts"></div>
-    <button class="btn gray" value="" style="width:100%;flex:none;margin-top:8px">취소</button>
+    <button class="btn gray" value="" id="pickCancel" style="width:100%;flex:none;margin-top:8px">취소</button>
   </form>
 </dialog>
 

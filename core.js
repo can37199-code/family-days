@@ -303,17 +303,52 @@ export function relabel(data) {
   for (const p of data.people) if (p.relAuto !== false) p.rel = kinship(data.people, data.meId, p.id) || '';
 }
 
-// 공유 링크: 데이터를 UTF-8 → base64url 로 주소 # 뒤에 담는다.
+// 공유 링크: 주소 # 뒤에 데이터를 담는다.
 // shortcut: 링크를 보낸 시점의 사본이라 실시간 동기화가 안 됨. 가족이 함께 고치는 일이 잦아지면 서버(Supabase)로 옮긴다.
-export function encodeShare(data) {
-  const bytes = new TextEncoder().encode(JSON.stringify(data));
-  let bin = ''; for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+// 카카오톡이 긴 링크를 자르므로 '#s=' 새 형식은 긴 id를 번호로 바꾸고 호칭(rel)은 빼고(받는 쪽에서 다시 계산) 압축한다.
+const b64u = bytes => { let bin = ''; for (const b of bytes) bin += String.fromCharCode(b); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const squeeze = async (bytes, Stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new Stream('deflate-raw'))).arrayBuffer());
+
+// 링크에 붙일 해시 문자열(예: 's=…')을 만든다
+export async function encodeShare(data) {
+  const idx = new Map(data.people.map((p, i) => [p.id, i]));
+  const p = data.people.map(x => {
+    const o = { n: x.name };
+    if (x.gender) o.g = x.gender;
+    if (idx.has(x.parentId)) o.p = idx.get(x.parentId);
+    if (idx.has(x.spouseId)) o.s = idx.get(x.spouseId);
+    if (x.placeholder) o.h = 1;
+    if (x.events?.length) o.e = x.events.map(e => [e.type, e.cal === 'lunar' ? 1 : 0, e.m, e.d, e.leap ? 1 : 0, e.eve ? 1 : 0]);
+    return o;
+  });
+  const json = JSON.stringify({ v: 2, m: idx.get(data.meId) ?? -1, p });
+  return 's=' + b64u(await squeeze(new TextEncoder().encode(json), CompressionStream));
 }
 
-export function decodeShare(str) {
-  const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
-  const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
-  if (!Array.isArray(data?.people)) throw new Error('형식이 맞지 않는 링크');
-  return data;
+// 's=…'(새 형식) 또는 'd=…'(예전 형식)을 읽는다. 링크는 밖에서 온 값이라 모양을 꼼꼼히 확인한다.
+export async function decodeShare(hash) {
+  hash = hash.replace(/^#/, '');
+  try { hash = decodeURIComponent(hash); } catch {}
+  hash = hash.replace(/\s+/g, ''); // 메신저가 줄바꿈·공백을 끼워 넣은 경우
+  const [kind, body = ''] = [hash.slice(0, 2), hash.slice(2)];
+  const str = s => typeof s === 'string' ? s.slice(0, 40) : '';
+  const num = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+  if (kind === 'd=') { // 예전 형식: 압축 없는 JSON 그대로
+    const data = JSON.parse(new TextDecoder().decode(unb64u(body)));
+    if (!Array.isArray(data?.people)) throw new Error('형식이 맞지 않는 링크');
+    return data;
+  }
+  if (kind !== 's=') throw new Error('형식이 맞지 않는 링크');
+  const d = JSON.parse(new TextDecoder().decode(await squeeze(unb64u(body), DecompressionStream)));
+  if (d?.v !== 2 || !Array.isArray(d.p) || d.p.length > 500) throw new Error('형식이 맞지 않는 링크');
+  const n = d.p.length, ids = d.p.map(() => globalThis.crypto.randomUUID());
+  const people = d.p.map((o, i) => ({
+    id: ids[i], name: str(o.n), gender: o.g === 'M' || o.g === 'F' ? o.g : '', rel: '',
+    parentId: num(o.p, 0, n - 1) ? ids[o.p] : null, spouseId: num(o.s, 0, n - 1) ? ids[o.s] : null,
+    ...(o.h ? { placeholder: true } : {}),
+    events: (Array.isArray(o.e) ? o.e : []).filter(e => Array.isArray(e) && num(e[2], 1, 12) && num(e[3], 1, 31))
+      .map(e => ({ type: e[0] === '기일' ? '기일' : '생일', cal: e[1] ? 'lunar' : 'solar', m: e[2], d: e[3], leap: !!e[4], eve: !!e[5] })),
+  }));
+  return { people, meId: num(d.m, 0, n - 1) ? ids[d.m] : null };
 }

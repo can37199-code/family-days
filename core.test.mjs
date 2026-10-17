@@ -23,9 +23,33 @@ assert.equal(ics.match(/BEGIN:VEVENT/g).length, 19); // 2026 추석은 이미 �
 assert.ok(ics.includes(`DTSTART;VALUE=DATE:${lunarToSolar(2027, 8, 15, false).replace(/-/g, '')}`));
 assert.ok(ics.includes('SUMMARY:아버지 생일'));
 
-const data = { people: [{ id: 'x', name: '할머니 👵', events: [] }] };
-assert.deepEqual(decodeShare(encodeShare(data)), data);
-assert.throws(() => decodeShare(encodeShare({ foo: 1 })));
+// 공유 링크: 새 형식(압축)으로 보내고 받으면 이름·성별·관계·기념일·'나'가 그대로
+{
+  const fam = { meId: 'b', people: [
+    { id: 'a-long-uuid-0000', name: '할머니 👵', gender: 'F', parentId: null, spouseId: null, rel: '할머니', events: [{ type: '기일', cal: 'lunar', m: 12, d: 20, leap: false, eve: true }] },
+    { id: 'b', name: '나', gender: 'M', parentId: 'a-long-uuid-0000', spouseId: 'c', rel: '나', events: [{ type: '생일', cal: 'solar', m: 8, d: 16, leap: false, eve: false }] },
+    { id: 'c', name: '아내', gender: 'F', parentId: null, spouseId: 'b', rel: '아내', events: [] },
+    { id: 'ph', name: '부모님', gender: '', placeholder: true, parentId: null, spouseId: null, rel: '', events: [] },
+  ] };
+  const hash = await encodeShare(fam);
+  assert.ok(hash.startsWith('s=') && /^[\w=-]+$/.test(hash));     // 주소에 안전한 글자만
+  const got = await decodeShare('#' + hash);
+  const by = n => got.people.find(p => p.name === n);
+  assert.equal(got.people.length, 4);
+  assert.equal(by('나').parentId, by('할머니 👵').id);
+  assert.equal(by('나').spouseId, by('아내').id);
+  assert.equal(got.meId, by('나').id);
+  assert.equal(by('부모님').placeholder, true);
+  assert.deepEqual(by('할머니 👵').events, fam.people[0].events);
+  const spaced = await decodeShare(hash.slice(0, 20) + '\n ' + hash.slice(20));
+  assert.equal(spaced.people.length, 4);
+  // 예전 형식(#d=) 링크도 계속 열림
+  const old = { people: [{ id: 'x', name: '할머니', events: [] }] };
+  const legacy = 'd=' + Buffer.from(JSON.stringify(old)).toString('base64url');
+  assert.deepEqual(await decodeShare('#' + legacy), old);
+  await assert.rejects(decodeShare('#s=망가진링크'));
+  await assert.rejects(decodeShare('#s=' + hash.slice(2, 30)));      // 잘린 링크
+}
 // 관계 붙이기·떼기
 const { link, detach, isAncestor } = await import('./core.js');
 const fam = () => ['gf', 'gm', 'hb', 'me', 'kid', 'x'].map(id => ({ id, events: [] }));

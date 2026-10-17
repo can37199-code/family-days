@@ -31,16 +31,30 @@ migrate(data);
 save();
 const byId = id => data.people.find(p => p.id === id);
 
-// 공유 링크로 열었을 때
-if (location.hash.startsWith('#d=')) {
-  try {
-    const incoming = decodeShare(location.hash.slice(3));
-    const msg = data.people.length
-      ? `가족 ${incoming.people.length}명의 기념일을 받았습니다.\n지금 이 폰에 있는 ${data.people.length}명은 받은 내용으로 바뀝니다. 가져올까요?`
-      : `가족 ${incoming.people.length}명의 기념일을 가져올까요?`;
-    if (confirm(msg)) { data = migrate(incoming); save(); }
-  } catch { alert('공유 링크가 손상되어 열 수 없습니다.'); }
-  history.replaceState(null, '', location.pathname);
+// 카카오톡 안의 브라우저: 여기서 저장하면 카톡 안에만 남아 홈 화면 앱에서는 안 보인다
+const IN_KAKAO = /KAKAOTALK/i.test(navigator.userAgent);
+const openOutside = () => { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); };
+
+// 공유 링크로 열었을 때 (#s= 새 형식, #d= 예전 형식)
+if (/^#[sd]=/.test(location.hash)) {
+  let here = true;
+  if (IN_KAKAO) {
+    const c = await choose('브라우저에서 열어 주세요', [
+      { value: 'out', label: '브라우저로 열기', sub: '홈 화면 앱과 같은 곳에 저장돼요' },
+      { value: 'here', label: '카카오톡 안에서 계속', sub: '카카오톡 안에만 저장돼요' },
+    ], '카카오톡 안에서 가져오면 홈 화면 앱에서는 보이지 않아요.');
+    if (c === 'out') { openOutside(); here = false; }
+  }
+  if (here) {
+    try {
+      const incoming = await decodeShare(location.hash);
+      const msg = data.people.length
+        ? `가족 ${incoming.people.length}명의 기념일을 받았습니다.\n지금 이 폰에 있는 ${data.people.length}명은 받은 내용으로 바뀝니다. 가져올까요?`
+        : `가족 ${incoming.people.length}명의 기념일을 가져올까요?`;
+      if (confirm(msg)) { data = migrate(incoming); save(); }
+    } catch { alert('공유 링크가 잘렸거나 손상되어 열 수 없어요.\n보낸 분께 링크를 다시 보내 달라고 해 주세요.'); }
+    history.replaceState(null, '', location.pathname);
+  }
 }
 
 const TITLES = {
@@ -248,7 +262,7 @@ function render() {
     };
     $('#link').onclick = async () => {
       if (!data.people.length) return alert('먼저 관계도에서 가족을 추가해 주세요.');
-      const url = `${location.origin}${location.pathname}#d=${encodeShare(data)}`;
+      const url = `${location.origin}${location.pathname}#${await encodeShare(data)}`;
       if (navigator.share) { try { await navigator.share({ title: '우리집 기념일', text: '우리 가족 생일·기일 달력이에요', url }); } catch {} }
       else { await navigator.clipboard.writeText(url); alert('링크를 복사했어요. 카톡에 붙여넣어 보내 주세요.'); }
     };
@@ -386,9 +400,12 @@ async function finishLink(kind, me, t, before) {
 }
 
 // 아래에서 올라오는 선택창. 고른 value를 돌려주고, 취소하면 ''
-function choose(title, options) {
+function choose(title, options, desc = '', cancel = '취소') {
   const d = $('#pick');
   $('#pickTitle').textContent = title;
+  $('#pickDesc').textContent = desc;
+  $('#pickDesc').hidden = !desc;
+  $('#pickCancel').textContent = cancel;
   $('#pickOpts').innerHTML = options.map(o => `<button class="opt" value="${o.value}"><b>${h(o.label)}</b><small>${h(o.sub)}</small></button>`).join('');
   d.returnValue = '';
   d.showModal();
@@ -477,4 +494,36 @@ $('#del').onclick = () => {
 };
 
 render();
+
+// ── 홈 화면 앱 설치 권하기: 앱으로 열지 않았을 때 처음 한 번 묻고, '다음에'를 누르면 7일 동안 다시 묻지 않는다 ──
+const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let installEvt = null; // 안드로이드·PC 크롬이 주는 설치 기회
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; offerInstall(); });
+addEventListener('appinstalled', () => { installEvt = null; });
+
+async function offerInstall() {
+  let asked = 0;
+  try { asked = +localStorage.getItem('install-asked') || 0; } catch {}
+  if (STANDALONE || Date.now() - asked < 7 * 864e5 || document.querySelector('dialog[open]')) return;
+  const how = IN_KAKAO ? 'kakao' : installEvt ? 'prompt' : IOS ? 'ios' : null;
+  if (!how) return; // 설치 기회가 아직 안 왔으면 beforeinstallprompt 때 다시 시도
+  try { localStorage.setItem('install-asked', Date.now()); } catch {}
+  const T = '앱으로 설치하시겠습니까?';
+  if (how === 'kakao') {
+    if (await choose(T, [{ value: 'out', label: '브라우저로 열기', sub: '브라우저에서 홈 화면에 설치할 수 있어요' }],
+      '카카오톡 안에서는 앱을 설치할 수 없어요.', '다음에') === 'out') openOutside();
+  } else if (how === 'prompt') {
+    if (await choose(T, [{ value: 'yes', label: '홈 화면에 설치', sub: '다음부터 앱처럼 바로 열려요' }],
+      '설치하면 홈 화면 아이콘으로 바로 열고, 인터넷이 없어도 볼 수 있어요.', '다음에') === 'yes') {
+      installEvt.prompt();
+      installEvt = null;
+    }
+  } else {
+    await choose(T, [{ value: 'ok', label: '알겠어요', sub: '' }],
+      '아이폰은 Safari 아래쪽의 공유 버튼(네모에 위 화살표)을 누른 뒤 "홈 화면에 추가"를 누르면 앱처럼 설치돼요.', '다음에');
+  }
+}
+setTimeout(offerInstall, 1500);
+
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
