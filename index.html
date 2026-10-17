@@ -215,6 +215,14 @@
   /* 형제·배우자 선택창 */
   .opt { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; border:0; border-radius:16px; background:var(--bg-2); padding:16px 18px; margin-bottom:8px; cursor:pointer; text-align:left; }
   .opt b { font-size:17px; font-weight:700; }
+  /* 아이폰 설치 순서 */
+  .steps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .steps li { display:flex; align-items:center; gap:12px; background:var(--bg-2); border-radius:16px; padding:14px; }
+  .steps .sn { flex:none; width:24px; height:24px; border-radius:50%; background:var(--accent); color:var(--accent-ink); font-size:13px; font-weight:700; display:grid; place-items:center; }
+  .steps .si { flex:none; width:40px; height:40px; border-radius:12px; background:var(--bg); color:var(--accent); display:grid; place-items:center; box-shadow:var(--shadow); }
+  .steps .si svg { width:24px; height:24px; }
+  .steps .st { font-size:15px; line-height:1.45; }
+  .steps small { display:block; color:var(--sub); font-size:13px; margin-top:2px; }
   .pick-desc { margin:-8px 0 16px; color:var(--ink-2); font-size:15px; line-height:1.6; }
   .opt small { font-size:13px; color:var(--sub); }
   .opt:active { background:var(--bg-3); }
@@ -234,6 +242,8 @@
   <symbol id="i-tree" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="3" width="7" height="5" rx="1.5"/><rect x="2.5" y="16" width="7" height="5" rx="1.5"/><rect x="14.5" y="16" width="7" height="5" rx="1.5"/><path d="M12 8v4M6 16v-4h12v4"/></g></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12.5V18a2.5 2.5 0 0 0 2.5 2.5h9A2.5 2.5 0 0 0 19 18v-5.5"/></g></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></g></symbol>
+  <symbol id="i-plusbox" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></g></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19z"/><path d="M9.5 20.5v-6h5v6"/></g></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
@@ -250,6 +260,22 @@
 </nav>
 <div id="toast" role="status" hidden></div>
 <div id="dragHint" hidden></div>
+
+<dialog id="iosGuide" aria-labelledby="iosGuideTitle">
+  <form method="dialog">
+    <h2 id="iosGuideTitle">아이폰에 앱 설치하기</h2>
+    <p class="pick-desc">아이폰은 보안 때문에 웹사이트가 대신 설치해 줄 수 없어요. 아래 순서대로 한 번만 눌러 주세요.</p>
+    <ol class="steps">
+      <li><span class="sn">1</span><span class="si"><svg><use href="#i-share"/></svg></span>
+        <span class="st"><b>Safari 아래쪽 공유 버튼</b>을 누르세요<small>안 보이면 오른쪽 아래 <b>···</b>을 누른 뒤 <b>공유</b></small></span></li>
+      <li><span class="sn">2</span><span class="si"><svg><use href="#i-plusbox"/></svg></span>
+        <span class="st">목록을 위로 올려 <b>홈 화면에 추가</b>를 누르세요</span></li>
+      <li><span class="sn">3</span><span class="si"><svg><use href="#i-home"/></svg></span>
+        <span class="st">오른쪽 위 <b>추가</b>를 누르면 끝!<small>홈 화면의 '기념일' 아이콘으로 열면 돼요</small></span></li>
+    </ol>
+    <button class="btn" value="ok" style="width:100%;flex:none;margin-top:16px">확인했어요</button>
+  </form>
+</dialog>
 
 <dialog id="pick">
   <form method="dialog">

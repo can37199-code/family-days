@@ -33,6 +33,8 @@ const byId = id => data.people.find(p => p.id === id);
 
 // 카카오톡 안의 브라우저: 여기서 저장하면 카톡 안에만 남아 홈 화면 앱에서는 안 보인다
 const IN_KAKAO = /KAKAOTALK/i.test(navigator.userAgent);
+const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; // 홈 화면 앱으로 열림
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const openOutside = () => { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); };
 
 // 공유 링크로 열었을 때 (#s= 새 형식, #d= 예전 형식)
@@ -150,7 +152,8 @@ function tree() {
 function share() {
   const row = (id, icon, title, desc) => `<button class="menu" id="${id}"><span class="ic"><svg class="i"><use href="#i-${icon}"/></svg></span>
     <span class="main"><b>${title}</b><small>${desc}</small></span><svg class="chev"><use href="#i-chev"/></svg></button>`;
-  return row('ics', 'bell', '폰 달력에 알림 넣기', '20년치 생일·기일을 달력 파일로 받아요')
+  return (STANDALONE ? '' : row('install', 'home', '홈 화면에 앱 설치', IOS ? '아이폰 설치 방법을 단계별로 알려 드려요' : '앱처럼 아이콘으로 바로 열어요'))
+    + row('ics', 'bell', '폰 달력에 알림 넣기', '20년치 생일·기일을 달력 파일로 받아요')
     + row('link', 'share', '가족에게 공유하기', '카톡으로 링크를 보내면 같은 관계도를 받아요')
     + `<div class="note"><h3>알아 두세요</h3><ul>
       <li>음력 날짜도 해마다 맞는 양력 날짜로 달력에 들어가요.</li>
@@ -254,6 +257,7 @@ function render() {
     }
   }
   if (tab === 'share') {
+    $('#install')?.addEventListener('click', installNow);
     $('#ics').onclick = () => {
       if (!data.people.length) return alert('먼저 관계도에서 가족을 추가해 주세요.');
       const url = URL.createObjectURL(new Blob([buildIcs(data.people, today())], { type: 'text/calendar' }));
@@ -496,8 +500,6 @@ $('#del').onclick = () => {
 render();
 
 // ── 홈 화면 앱 설치 권하기: 앱으로 열지 않았을 때 처음 한 번 묻고, '다음에'를 누르면 7일 동안 다시 묻지 않는다 ──
-const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let installEvt = null; // 안드로이드·PC 크롬이 주는 설치 기회
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; offerInstall(); });
 addEventListener('appinstalled', () => { installEvt = null; });
@@ -520,10 +522,23 @@ async function offerInstall() {
       installEvt = null;
     }
   } else {
-    await choose(T, [{ value: 'ok', label: '알겠어요', sub: '' }],
-      '아이폰은 Safari 아래쪽의 공유 버튼(네모에 위 화살표)을 누른 뒤 "홈 화면에 추가"를 누르면 앱처럼 설치돼요.', '다음에');
+    showIosGuide(); // 아이폰 Safari는 웹에서 설치를 대신 눌러 줄 수 없어서 순서만 안내한다
   }
 }
 setTimeout(offerInstall, 1500);
+
+function showIosGuide() {
+  const d = $('#iosGuide');
+  d.showModal();
+  return new Promise(res => d.addEventListener('close', res, { once: true }));
+}
+
+// 알림·공유 탭의 '홈 화면에 앱 설치' (자동 안내와 달리 언제든 다시 볼 수 있다)
+async function installNow() {
+  if (IN_KAKAO) { if (await choose('브라우저에서 설치해 주세요', [{ value: 'out', label: '브라우저로 열기', sub: '카카오톡 안에서는 앱을 설치할 수 없어요' }]) === 'out') openOutside(); }
+  else if (installEvt) { installEvt.prompt(); installEvt = null; }
+  else if (IOS) showIosGuide();
+  else alert('브라우저 메뉴에서 "앱 설치" 또는 "홈 화면에 추가"를 눌러 주세요.');
+}
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
