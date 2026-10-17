@@ -70,6 +70,55 @@ export function buildIcs(people, today, years = 20) {
   return out.join('\r\n') + '\r\n';
 }
 
+// ── 가족 관계 붙이기·떼기 (people 배열을 직접 고친다. 실패하면 이유 문자열) ──
+const find = (people, id) => people.find(p => p.id === id);
+const unit = (people, id) => [id, find(people, id)?.spouseId].filter(Boolean); // 부부는 한 단위
+
+// anc 가 id 의 윗대(부부 포함)인가
+export function isAncestor(people, anc, id) {
+  const seen = new Set(), queue = unit(people, id);
+  while (queue.length) {
+    const x = queue.shift();
+    if (seen.has(x)) continue;
+    seen.add(x);
+    const parent = find(people, x)?.parentId;
+    if (!parent) continue;
+    if (unit(people, parent).includes(anc)) return true;
+    queue.push(...unit(people, parent));
+  }
+  return false;
+}
+
+export function setSpouse(people, a, b) {
+  for (const id of [a, b]) { // 기존 배우자와는 떨어진다
+    const old = find(people, find(people, id)?.spouseId);
+    if (old) old.spouseId = null;
+  }
+  if (b) { find(people, a).spouseId = b; find(people, b).spouseId = a; }
+  else find(people, a).spouseId = null;
+}
+
+// kind: 'spouse' 배우자로, 'child' a를 b의 자녀로, 'parent' a를 b의 부모로
+export function link(people, a, b, kind) {
+  if (a === b) return '같은 사람입니다.';
+  if (kind === 'spouse') {
+    if (isAncestor(people, a, b) || isAncestor(people, b, a)) return '부모·자녀 사이는 부부로 붙일 수 없어요.';
+    setSpouse(people, a, b);
+  } else {
+    const [child, parent] = kind === 'child' ? [a, b] : [b, a];
+    if (unit(people, child).includes(parent)) return '부부 사이는 부모·자녀로 붙일 수 없어요.';
+    if (isAncestor(people, child, parent)) return '자기 자손을 부모로 둘 수는 없어요.';
+    find(people, child).parentId = parent;
+  }
+  return null;
+}
+
+// 가족도에서 떼어내기: 부모·배우자 연결만 끊고, 이 사람의 자녀는 그대로 따라온다.
+export function detach(people, id) {
+  setSpouse(people, id, null);
+  find(people, id).parentId = null;
+}
+
 // 공유 링크: 데이터를 UTF-8 → base64url 로 주소 # 뒤에 담는다.
 // shortcut: 링크를 보낸 시점의 사본이라 실시간 동기화가 안 됨. 가족이 함께 고치는 일이 잦아지면 서버(Supabase)로 옮긴다.
 export function encodeShare(data) {

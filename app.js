@@ -1,4 +1,4 @@
-import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare } from './core.js';
+import { nextDate, daysBetween, describe, buildIcs, encodeShare, decodeShare, link, setSpouse, detach } from './core.js';
 
 const KEY = 'family-days';
 const $ = s => document.querySelector(s);
@@ -58,7 +58,7 @@ function tree() {
     if (s) done.add(s.id);
     const ids = [p.id, s?.id];
     const kids = data.people.filter(c => c.parentId && ids.includes(c.parentId) && !done.has(c.id));
-    return `<li><span class="couple">${card(p)}${s ? `<span class="heart" aria-label="배우자">♥</span>${card(s)}` : ''}</span>
+    return `<li><span class="couple">${card(p)}${s ? `<span class="heart" aria-hidden="true"></span>${card(s)}` : ''}</span>
       ${kids.length ? `<ul>${kids.map(k => done.has(k.id) ? '' : node(k)).join('')}</ul>` : ''}</li>`;
   };
   // 부모가 등록 안 된 사람부터. 배우자 쪽에 부모가 있으면 그쪽 가지에서 함께 그린다.
@@ -72,7 +72,8 @@ function tree() {
   }).join('');
   const rest = data.people.filter(p => !done.has(p.id)); // 순환 등으로 빠진 사람도 보이게
   if (rest.length) html += `<div class="branch"><ul>${rest.map(p => `<li>${card(p)}</li>`).join('')}</ul></div>`;
-  return `<div class="tree">${html}</div><p class="sub">카드를 누르면 수정할 수 있습니다. 점선 카드는 기일이 있는 분입니다.</p>`;
+  return `<div class="tree">${html}</div><p class="sub">카드를 끌어다 다른 카드의 <b>옆</b>에 놓으면 부부, <b>아래</b>는 자녀, <b>위</b>는 부모로 붙습니다.
+    빈 곳에 놓으면 떨어집니다. 누르면 수정할 수 있고, 점선 카드는 기일이 있는 분입니다.</p>`;
 }
 
 function share() {
@@ -87,7 +88,15 @@ function share() {
 }
 
 function render() {
+  // 가족도는 카드가 새 자리로 미끄러져 붙고 떨어지게(FLIP 애니메이션)
+  const old = new Map([...document.querySelectorAll('.tree .person')].map(el => [el.dataset.id, el.getBoundingClientRect()]));
   $('#view').innerHTML = tab === 'upcoming' ? upcoming() : tab === 'tree' ? tree() : share();
+  if (tab === 'tree' && old.size && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('.tree .person').forEach(el => {
+      const a = old.get(el.dataset.id), b = el.getBoundingClientRect();
+      if (a) el.animate([{ transform: `translate(${a.left - b.left}px, ${a.top - b.top}px)` }, { transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    });
+  }
   $('#add').hidden = tab === 'share';
   if (tab === 'share') {
     $('#ics').onclick = () => {
@@ -105,7 +114,72 @@ function render() {
   }
 }
 
-$('#view').addEventListener('click', e => { const el = e.target.closest('[data-id]'); if (el) openForm(el.dataset.id); });
+$('#view').addEventListener('click', e => { const el = e.target.closest('[data-id]'); if (el && !suppressClick) openForm(el.dataset.id); });
+
+// ── 가족도 드래그앤드롭: 다른 카드의 위(부모)·옆(배우자)·아래(자녀)에 놓으면 붙고, 빈 곳에 놓으면 떨어진다 ──
+// shortcut: 끌면서 화면 끝에 가도 자동 스크롤은 안 됨. 가족이 많아 화면을 넘으면 추가.
+const ZONE = { parent: '부모로', spouse: '배우자로', child: '자녀로' };
+let drag = null, suppressClick = false;
+
+$('#view').addEventListener('pointerdown', e => {
+  const card = e.target.closest('.tree .person');
+  if (card && e.button === 0) drag = { id: card.dataset.id, card, x: e.clientX, y: e.clientY };
+});
+
+function dropTarget(x, y) {
+  const el = document.elementFromPoint(x, y)?.closest('.tree .person');
+  if (!el || el === drag.card) return null;
+  const r = el.getBoundingClientRect(), ry = (y - r.top) / r.height;
+  return { el, id: el.dataset.id, kind: ry < 0.3 ? 'parent' : ry > 0.7 ? 'child' : 'spouse' };
+}
+
+addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.ghost) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return; // 살짝 누른 건 탭
+    const r = drag.card.getBoundingClientRect();
+    drag.dx = drag.x - r.left; drag.dy = drag.y - r.top;
+    drag.ghost = Object.assign(drag.card.cloneNode(true), { className: drag.card.className + ' ghost' });
+    drag.ghost.style.width = r.width + 'px';
+    document.body.append(drag.ghost);
+    drag.card.classList.add('dragging');
+  }
+  drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
+  drag.t?.el.removeAttribute('data-drop');
+  drag.t = dropTarget(e.clientX, e.clientY);
+  if (drag.t) { drag.t.el.dataset.drop = ZONE[drag.t.kind] + ' 붙이기'; drag.t.el.dataset.zone = drag.t.kind; }
+});
+
+function endDrag(cancelled) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.ghost) return;
+  d.ghost.remove(); d.card.classList.remove('dragging'); d.t?.el.removeAttribute('data-drop');
+  suppressClick = true; setTimeout(() => suppressClick = false);
+  if (cancelled) return;
+  const before = JSON.stringify(data.people), me = byId(d.id);
+  if (d.t) {
+    const err = link(data.people, d.id, d.t.id, d.t.kind);
+    if (err) return alert(err);
+    commit(`${me.name}님을 ${byId(d.t.id).name}님의 ${ZONE[d.t.kind].slice(0, -1)}로 붙였어요.`, before);
+  } else if (me.parentId || me.spouseId) {
+    detach(data.people, d.id);
+    commit(`${me.name}님을 떼어냈어요.`, before);
+  }
+}
+addEventListener('pointerup', () => endDrag(false));
+addEventListener('pointercancel', () => endDrag(true));
+
+// 바뀐 관계 저장 + 되돌리기 안내
+let toastTimer;
+function commit(msg, before) {
+  save(); render();
+  const t = $('#toast');
+  t.innerHTML = `<span>${h(msg)}</span><button type="button">되돌리기</button>`;
+  t.hidden = false;
+  t.querySelector('button').onclick = () => { data.people = JSON.parse(before); save(); render(); t.hidden = true; };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 5000);
+}
 $('#view').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.id) openForm(e.target.dataset.id); });
 
 // 등록·수정 폼
@@ -149,17 +223,16 @@ form.onsubmit = e => {
     }
     events.push({ type: fs.dataset.ev, cal, m, d, leap: cal === 'lunar' && fs.querySelector('[name=leap]').checked, eve: !!fs.querySelector('[name=eve]')?.checked });
   }
-  const p = byId(editing) || { id: crypto.randomUUID() };
-  const oldSpouse = p.spouseId;
-  Object.assign(p, { name: form.name.value.trim(), rel: form.rel.value.trim(), parentId: form.parentId.value || null, spouseId: form.spouseId.value || null, events });
+  const before = JSON.stringify(data.people);
+  const p = byId(editing) || { id: crypto.randomUUID(), parentId: null, spouseId: null };
+  Object.assign(p, { name: form.name.value.trim(), rel: form.rel.value.trim(), events });
   if (!editing) data.people.push(p);
-  // 배우자는 양쪽에 같이 기록
-  if (oldSpouse && oldSpouse !== p.spouseId && byId(oldSpouse)) byId(oldSpouse).spouseId = null;
-  if (p.spouseId) {
-    const s = byId(p.spouseId);
-    if (s.spouseId && s.spouseId !== p.id && byId(s.spouseId)) byId(s.spouseId).spouseId = null;
-    s.spouseId = p.id;
-  }
+  // 관계는 드래그와 같은 규칙으로 (순환·부부끼리 부모자녀 막기, 배우자 양쪽 기록)
+  const spouseId = form.spouseId.value || null, parentId = form.parentId.value || null;
+  let err = null;
+  if (spouseId !== (p.spouseId || null)) err = spouseId ? link(data.people, p.id, spouseId, 'spouse') : (setSpouse(data.people, p.id, null), null);
+  if (!err && parentId !== (p.parentId || null)) err = parentId ? link(data.people, p.id, parentId, 'child') : (p.parentId = null, null);
+  if (err) { data.people = JSON.parse(before); e.preventDefault(); return alert(err); }
   save(); render();
 };
 

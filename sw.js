@@ -1,5 +1,5 @@
 // 파일을 고치면 VERSION을 올려야 폰에 새 버전이 들어간다.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const FILES = ['./', 'index.html', 'app.js', 'core.js', 'lunar.min.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES))); self.skipWaiting(); });

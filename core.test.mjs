@@ -26,4 +26,24 @@ assert.ok(ics.includes('SUMMARY:아버지 생신'));
 const data = { people: [{ id: 'x', name: '할머니 👵', events: [] }] };
 assert.deepEqual(decodeShare(encodeShare(data)), data);
 assert.throws(() => decodeShare(encodeShare({ foo: 1 })));
+// 관계 붙이기·떼기
+const { link, detach, isAncestor } = await import('./core.js');
+const fam = () => ['gf', 'gm', 'hb', 'me', 'kid', 'x'].map(id => ({ id, events: [] }));
+let f = fam();
+assert.equal(link(f, 'gf', 'gm', 'spouse'), null);
+assert.equal(f[0].spouseId, 'gm'); assert.equal(f[1].spouseId, 'gf');
+assert.equal(link(f, 'hb', 'gm', 'child'), null);               // 시어머니 아래로 → 부부 단위의 자녀
+assert.equal(link(f, 'me', 'hb', 'spouse'), null);
+assert.equal(link(f, 'kid', 'me', 'child'), null);
+assert.ok(isAncestor(f, 'gf', 'kid'));                          // 배우자 쪽으로도 윗대 계산
+assert.ok(link(f, 'gf', 'kid', 'child'));                       // 순환 막기
+assert.ok(link(f, 'kid', 'gm', 'spouse'));                      // 손주와 부부 막기
+assert.ok(link(f, 'gm', 'gf', 'child'));                        // 부부끼리 부모·자녀 막기
+assert.equal(link(f, 'x', 'me', 'spouse'), null);               // 새 배우자 → 기존 배우자와 떨어짐
+assert.equal(f.find(p => p.id === 'hb').spouseId, null);
+detach(f, 'hb');
+assert.equal(f.find(p => p.id === 'hb').parentId, null);
+assert.equal(f.find(p => p.id === 'kid').parentId, 'me');       // 자녀는 그대로
+assert.equal(link(f, 'gm', 'x', 'parent'), null);               // 부모로 붙이기
+assert.equal(f.find(p => p.id === 'x').parentId, 'gm');
 console.log('모든 검사 통과');

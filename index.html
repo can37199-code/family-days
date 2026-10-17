@@ -39,12 +39,26 @@
   .tree li:first-child::after { border-radius:6px 0 0 0; }
   .tree ul ul::before { content:""; position:absolute; top:0; left:50%; height:20px; border-left:2px solid var(--line); }
   .branch > ul { padding-top:0; }
-  .couple { display:inline-flex; gap:4px; align-items:center; }
-  .person { display:inline-block; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 12px; min-width:84px; cursor:pointer; font:inherit; color:inherit; }
+  /* 부부는 한 장처럼 붙은 카드 */
+  .couple { display:inline-flex; align-items:stretch; }
+  .couple > .person:first-child:not(:last-child) { border-radius:12px 0 0 12px; border-right-width:0; }
+  .couple > .person:last-child:not(:first-child) { border-radius:0 12px 12px 0; border-left:1px dashed var(--line); }
+  .heart { width:0; display:flex; align-items:center; justify-content:center; z-index:1; }
+  .heart::before { content:"♥"; flex:none; width:22px; height:22px; line-height:20px; font-size:12px; text-align:center; color:var(--accent); background:var(--card); border:1px solid var(--line); border-radius:50%; }
+  .person { display:inline-block; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 12px; min-width:84px; cursor:grab; font:inherit; color:inherit; touch-action:none; user-select:none; -webkit-user-select:none; position:relative; }
+  .person.dragging { opacity:.3; }
+  .person.ghost { position:fixed; left:0; top:0; z-index:50; pointer-events:none; cursor:grabbing; box-shadow:0 10px 28px rgba(0,0,0,.25); border-radius:12px !important; border:1px solid var(--accent); }
+  .person[data-drop] { outline:3px solid var(--accent); outline-offset:2px; z-index:2; }
+  .person[data-drop]::after { content:attr(data-drop); position:absolute; left:50%; transform:translateX(-50%); background:var(--accent); color:#fff; font-size:12px; font-weight:700; padding:2px 8px; border-radius:8px; white-space:nowrap; }
+  .person[data-zone=parent]::after { top:-26px; }
+  .person[data-zone=child]::after { bottom:-26px; }
+  .person[data-zone=spouse]::after { top:-26px; }
+  #toast { position:fixed; left:0; right:0; margin:0 auto; width:fit-content; bottom:max(84px, calc(env(safe-area-inset-bottom) + 72px)); z-index:60; display:flex; gap:12px; align-items:center; background:var(--ink); color:var(--bg); padding:10px 14px; border-radius:12px; font-size:14px; max-width:calc(100% - 32px); box-shadow:0 6px 20px rgba(0,0,0,.25); }
+  #toast[hidden] { display:none; }
+  #toast button { border:0; background:transparent; color:var(--accent); font:inherit; font-weight:700; cursor:pointer; white-space:nowrap; }
   .person b { display:block; white-space:nowrap; }
   .person small { color:var(--sub); white-space:nowrap; }
   .person.gone { border-style:dashed; }
-  .heart { color:var(--accent); }
   .fab { position:fixed; right:16px; bottom:max(16px, env(safe-area-inset-bottom)); background:var(--accent); color:#fff; border:0; border-radius:28px; padding:14px 22px; font:inherit; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,.2); cursor:pointer; }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
   .panel h2 { margin:0 0 6px; font-size:17px; }
@@ -76,6 +90,7 @@
 </nav>
 <main id="view"></main>
 <button class="fab" id="add">＋ 가족 추가</button>
+<div id="toast" role="status" hidden></div>
 
 <dialog id="dlg">
   <form method="dialog" id="form">
